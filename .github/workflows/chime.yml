@@ -1,5 +1,5 @@
 # Hall chimes (chime/): the bell machine's ESP32-S3 sketch. Builds on its own and publishes ONLY
-# https://jobot101.github.io/ragamuffin-flasher/chime/ (the page and sol/ untouched).
+# https://jobot101.github.io/Ragamuffin-Flasher/chime/ (the page and sol/ untouched).
 # MIDI in + 4x MCP23017 solenoid drivers + MQTT + its own web page (Install latest). Arduino core 3.x, 4 MB image
 # (default partitions, two OTA slots), no PSRAM, DIO flash so it boots on any S3 module; native-USB serial for the
 # flasher's boot log. FW_VERSION = the short SHA, same as chime/manifest.json, so the page can tell it's up to date.

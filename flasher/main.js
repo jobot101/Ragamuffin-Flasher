@@ -1,4 +1,4 @@
-// Ragamuffin Flasher: one-tap ESP32-S3 flasher for phones (https://jobot101.github.io/ragamuffin-flasher/)
+// Ragamuffin Flasher: one-tap ESP32-S3 flasher for phones (https://jobot101.github.io/Ragamuffin-Flasher/)
 //   arm brain = Waveshare ESP32-S3-AUDIO-Board  (native USB-Serial-JTAG, 303A:1001, 16 MB flash)  } built by
 //   camera    = Hiwonder ESP32-S3 vision module (4 MB flash; its USB may be native or a CH340 bridge) } jobot101/xarm,
 //                                                       read from its Pages site (CORS *)

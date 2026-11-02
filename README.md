@@ -2,7 +2,7 @@
 
 One-tap firmware installs for Ragamuffin Hall's ESP32-S3 boards, from a phone over USB-C.
 
-**https://jobot101.github.io/ragamuffin-flasher/**
+**https://jobot101.github.io/Ragamuffin-Flasher/**
 
 | Button | Board | Built in |
 |---|---|---|

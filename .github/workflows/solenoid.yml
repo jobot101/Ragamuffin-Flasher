@@ -1,4 +1,4 @@
-# Solenoid tester (solenoid/): builds on its own and publishes ONLY https://jobot101.github.io/ragamuffin-flasher/sol/.
+# Solenoid tester (solenoid/): builds on its own and publishes ONLY https://jobot101.github.io/Ragamuffin-Flasher/sol/.
 # The flasher page and chime/ stay untouched.
 # One MOSFET + solenoid on any ESP32-S3. Arduino core 3.x, 4 MB image, no PSRAM, DIO flash so it boots on any
 # S3 module; native-USB serial (CDC on boot) for the flasher's boot log. Boards update from the page (Install latest).

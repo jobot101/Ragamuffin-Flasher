@@ -36,7 +36,7 @@
 // ---------------- network config ----------------
 // Nothing secret lives here: the repo is public. The hall WiFi password and the MQTT login are typed once
 // on the board's page and kept in NVS (namespace "chime").
-#define LATEST_URL  "https://jobot101.github.io/ragamuffin-flasher/chime/"
+#define LATEST_URL  "https://jobot101.github.io/Ragamuffin-Flasher/chime/"
 #define AP_SSID     "Chimes"
 #define AP_PASS     "ragamuffin"
 #define HOME_SSID   "ClarkShop"                 // preset network on the page

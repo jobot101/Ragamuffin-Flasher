@@ -1,6 +1,6 @@
 # Handoff — solenoid tester (Ragamuffin Hall bell machine)
 
-Repo `jobot101/ragamuffin-flasher`, folder `solenoid/` (moved from `jobot101/xarm` on Nov 2 2026). It's a one-MOSFET, one-solenoid test rig on any ESP32-S3. It's the first step toward the hall bell machine: 24 tubes, one push-pull solenoid per tube that both strikes and damps, played from a MIDI keyboard. **It is not part of the arm (Muffin).**
+Repo `jobot101/Ragamuffin-Flasher`, folder `solenoid/` (moved from `jobot101/xarm` on Nov 2 2026). It's a one-MOSFET, one-solenoid test rig on any ESP32-S3. It's the first step toward the hall bell machine: 24 tubes, one push-pull solenoid per tube that both strikes and damps, played from a MIDI keyboard. **It is not part of the arm (Muffin).**
 
 ## Status (Nov 2 2026)
 - Firmware written, compiles clean in CI. Last build from xarm: `5360c13` (its Install latest still points at xarm/sol/; one Upload file or USB flash moves a board over).
@@ -27,7 +27,7 @@ Repo `jobot101/ragamuffin-flasher`, folder `solenoid/` (moved from `jobot101/xar
   - Station retries are paced: a 15 s attempt, then 45 s off. Without that, a nonstop retry hops channels and knocks phones off the AP.
 - **Web page:** embedded in the firmware (`PAGE`, a raw string).
   - Endpoints: `/state`, `/s?v=`, `/h?on=`, `/stop`, `/r?n&bpm&v`, `/cfg?…`, `/scan`, `/wifi?ssid&pass|forget=1`, `POST /update` (multipart OTA).
-  - **Install latest** fetches `https://jobot101.github.io/ragamuffin-flasher/sol/manifest.json` + `solenoid.bin` through the phone's mobile data, then posts it to `/update`.
+  - **Install latest** fetches `https://jobot101.github.io/Ragamuffin-Flasher/sol/manifest.json` + `solenoid.bin` through the phone's mobile data, then posts it to `/update`.
 - **NVS namespace `sol`:** `pin inv min max kick hold mhold hz volts ssid wpass`.
 
 ## Build / ship
@@ -38,7 +38,7 @@ Repo `jobot101/ragamuffin-flasher`, folder `solenoid/` (moved from `jobot101/xar
 - **Flasher:** `flasher/` (`main.js` `BOARDS.sol`, `expectMB: 0` = any flash size; full erase + write of all 4 parts). The board button is "🔔 Solenoid". `flasher.yml` republishes the page alone (`keep_files`).
 - **Local compile:** not possible in the Claude cloud workspace, because the toolchain downloads are blocked. Use CI.
 - **The owner works from an Android phone.**
-  - First flash: https://jobot101.github.io/ragamuffin-flasher/ → Solenoid.
+  - First flash: https://jobot101.github.io/Ragamuffin-Flasher/ → Solenoid.
   - After that: on the solenoid page, Firmware → **Install latest** (mobile data on, opened in Chrome, not the captive pop-up).
 
 ## Wiring rules (tell the owner if asked)

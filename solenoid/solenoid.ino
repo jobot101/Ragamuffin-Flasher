@@ -24,7 +24,7 @@
 #ifndef FW_VERSION
 #define FW_VERSION  "dev"
 #endif
-#define LATEST_URL  "https://jobot101.github.io/ragamuffin-flasher/sol/"
+#define LATEST_URL  "https://jobot101.github.io/Ragamuffin-Flasher/sol/"
 #define AP_SSID     "Solenoid"
 #define AP_PASS     "ragamuffin"
 #define HOSTNAME    "solenoid"

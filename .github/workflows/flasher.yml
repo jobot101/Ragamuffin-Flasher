@@ -1,4 +1,4 @@
-# Phone flasher page (flasher/): rebuilds the page itself and publishes it over https://jobot101.github.io/ragamuffin-flasher/
+# Phone flasher page (flasher/): rebuilds the page itself and publishes it over https://jobot101.github.io/Ragamuffin-Flasher/
 # with keep_files, so sol/ and chime/ stay as they are. The arm + camera files are read from jobot101/xarm's site.
 name: flasher
 
