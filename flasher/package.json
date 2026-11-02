@@ -6,6 +6,8 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@fontsource/alegreya-sans": "5.3.0",
+    "@fontsource/im-fell-english": "5.3.0",
     "esptool-js": "0.7.0",
     "web-serial-polyfill": "1.0.15"
   },

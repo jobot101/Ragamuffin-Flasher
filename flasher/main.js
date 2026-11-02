@@ -24,7 +24,40 @@ const $ = (id) => document.getElementById(id)
 const logEl = $('log'), statusEl = $('status'), barEl = $('bar'), flashBtn = $('flash'), monBtn = $('monitor')
 const log = (s = '') => { logEl.textContent += s; logEl.scrollTop = logEl.scrollHeight }
 const status = (s, cls = '') => { statusEl.textContent = s; statusEl.className = 'status ' + cls }
-const progress = (f) => { barEl.style.width = `${Math.round(f * 100)}%` }
+const progress = (f) => { barEl.style.width = `${Math.round(f * 100)}%`; roseFill(f) }
+
+// The Ragamuffin Hall rose window: 16 scalloped petals of stained glass around a five-pointed star.
+// It doubles as the progress meter: while flashing, the petals light one by one clockwise from the top.
+const PETALS = 16, GLASS = ['#2a4f9e', '#a3213a'], ROUNDEL = ['#e3a531', '#2f8f5f']   // sapphire/ruby petals, amber/emerald roundels
+const petals = []
+function drawRose() {
+  const svg = $('rose'), NS = 'http://www.w3.org/2000/svg', r1 = 40, r2 = 84, half = (Math.PI / PETALS) * 0.86
+  const pt = (r, a) => `${(r * Math.cos(a)).toFixed(2)} ${(r * Math.sin(a)).toFixed(2)}`
+  const el = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); svg.append(e); return e }
+  svg.innerHTML = `<defs><radialGradient id="shine" cx="38%" cy="30%" r="75%">
+    <stop offset="0" stop-color="#fff6dc" stop-opacity=".32"/><stop offset=".55" stop-color="#fff6dc" stop-opacity="0"/>
+    <stop offset="1" stop-color="#000" stop-opacity=".35"/></radialGradient></defs>`
+  el('circle', { r: 95, fill: '#1c120c' })
+  for (let i = 0; i < PETALS; i++) {
+    const a = (i / PETALS) * 2 * Math.PI - Math.PI / 2, l = a - half, r = a + half
+    const chord = 2 * r2 * Math.sin(half), scallop = (chord / 2) * 1.08
+    const g = el('g', { class: 'petal' })
+    const path = document.createElementNS(NS, 'path'), ro = document.createElementNS(NS, 'circle')
+    path.setAttribute('fill', GLASS[i % 2])
+    path.setAttribute('d', `M ${pt(r1, l)} L ${pt(r2, l)} A ${scallop} ${scallop} 0 0 1 ${pt(r2, r)} L ${pt(r1, r)} A ${r1} ${r1} 0 0 0 ${pt(r1, l)} Z`)
+    const [cx, cy] = pt(r2 - 13, a).split(' ')
+    Object.entries({ cx, cy, r: 5.6, fill: ROUNDEL[Math.floor(i / 2) % 2] }).forEach(([k, v]) => ro.setAttribute(k, v))
+    g.append(path, ro); petals.push(g)
+  }
+  el('circle', { class: 'ring in', r: r1 - 3 })
+  el('circle', { class: 'hub', r: r1 - 5 })
+  const star = Array.from({ length: 10 }, (_, k) => pt(k % 2 ? 12.5 : 30, (k / 10) * 2 * Math.PI - Math.PI / 2)).join(' L ')
+  el('path', { class: 'star', d: `M ${star} Z` })
+  el('circle', { class: 'ring', r: 95 })
+  el('circle', { class: 'shine', r: 95, fill: 'url(#shine)' })
+}
+function roseFill(f) { const n = Math.round(f * PETALS); petals.forEach((p, i) => p.classList.toggle('lit', i < n)) }
+drawRose()
 const terminal = { clean() { logEl.textContent = '' }, writeLine: (s) => log(s + '\n'), write: (s) => log(s) }
 
 let board = 'arm'
@@ -44,12 +77,13 @@ async function loadManifests() {
 }
 
 function render(hint = false) {
-  document.querySelectorAll('.board').forEach(b => b.classList.toggle('on', b.dataset.board === board))
+  document.body.dataset.board = board
+  document.querySelectorAll('.board').forEach(b => { b.classList.toggle('on', b.dataset.board === board); b.setAttribute('aria-checked', b.dataset.board === board) })
   $('modes').style.display = board === 'arm' ? '' : 'none'
   const m = board === 'cam' ? manifests.cam?.qspi : manifests[board]
   $('fw').textContent = m ? `build ${m.version}` : 'files missing'
   flashBtn.disabled = !m || busy
-  flashBtn.textContent = { arm: 'Flash arm brain', cam: 'Flash camera', sol: 'Flash solenoid tester', chime: 'Flash hall chimes' }[board]
+  flashBtn.textContent = { arm: 'Flash the arm brain', cam: 'Flash the camera', sol: 'Flash the solenoid', chime: 'Flash the hall chimes' }[board]
   if (hint) status({
     arm: 'Plug the Waveshare board (round, with the speaker) into this phone.',
     cam: 'Plug the camera module into this phone by its own USB-C. Unplug it from the arm first.',
@@ -94,6 +128,7 @@ async function fetchBin(base, path) {
 async function flash() {
   if (busy) return
   busy = true; render(); monBtn.disabled = true
+  document.body.classList.remove('done'); document.body.classList.add('flashing')
   const B = BOARDS[board]
   const mode = document.querySelector('input[name=mode]:checked').value
   const full = board !== 'arm' || mode !== 'app'           // write every part
@@ -151,6 +186,7 @@ async function flash() {
       sol: 'Solenoid done ✓ — join WiFi “Solenoid” (pw ragamuffin) → 192.168.4.1. MOSFET gate on GPIO 4 (change it there). BOOT button = strike.',
       chime: 'Chimes done ✓ — join WiFi “Chimes” (pw ragamuffin) → 192.168.4.1: drivers found, test tubes, hall WiFi, MQTT, Install latest. MIDI in on GPIO 18, I2C SDA 8 / SCL 9.',
     }[board], 'ok')
+    document.body.classList.add('done')
   } catch (e) {
     console.error(e)
     log(`\nERROR: ${e.message || e}\n`)
@@ -160,6 +196,7 @@ async function flash() {
   } finally {
     try { await transport?.disconnect() } catch {}
     busy = false; render(); monBtn.disabled = false
+    document.body.classList.remove('flashing')
   }
 }
 

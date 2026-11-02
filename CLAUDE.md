@@ -42,4 +42,9 @@ GitHub Actions is the build machine. Ship a change by pushing to `main`, then re
 
 - **Nothing secret in the repo or on Pages** (both public): no WiFi passwords, MQTT logins or OTA passwords. They're typed on the board's page and kept in NVS.
 - **Keep xarm's paths:** `https://jobot101.github.io/xarm/fw/` and `/cam/` belong to xarm. Muffin's auto-update and the old flasher at `/xarm/` still use them.
-- **Keep it plain:** the Ragamuffin Hall voice, oak/brass, and plain words on the page.
+- **Keep it plain:** the Ragamuffin Hall voice and plain words on the page.
+- **Page design (Ragamuffin Studios):**
+  - **Materials:** a walnut background, roasted-maple edges, a polished brass plate for the primary button (engraved text), and blackened brass for the boot log.
+  - **Type:** IM Fell English for the wordmark and headings, Alegreya Sans for the UI. Both are self-hosted through @fontsource.
+  - **The rose window SVG** (16 sapphire/ruby petals, amber/emerald roundels, a star hub) is the one loud element. Its petals light up as the progress meter while flashing (`roseFill`).
+  - **Board jewels:** arm = amber, camera = sapphire, solenoid = emerald, chimes = ruby. `body[data-board]` tints the hub star. A new board needs a jewel colour in style.css.
