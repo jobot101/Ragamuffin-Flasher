@@ -1,0 +1,90 @@
+# Hall chimes (chime/): the bell machine's ESP32-S3 sketch. Builds on its own and publishes ONLY
+# https://jobot101.github.io/ragamuffin-flasher/chime/ (the page and sol/ untouched).
+# MIDI in + 4x MCP23017 solenoid drivers + MQTT + its own web page (Install latest). Arduino core 3.x, 4 MB image
+# (default partitions, two OTA slots), no PSRAM, DIO flash so it boots on any S3 module; native-USB serial for the
+# flasher's boot log. FW_VERSION = the short SHA, same as chime/manifest.json, so the page can tell it's up to date.
+name: chime
+
+on:
+  push:
+    branches: [main, "dev/**"]
+    paths: [chime/**, .github/workflows/chime.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: chime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/.cache/arduino
+            ~/Arduino/libraries
+          key: arduino-esp32-3.2.0-chime
+
+      - uses: arduino/setup-arduino-cli@v2
+      - name: install esp32 core 3.x + libraries
+        run: |
+          URL=https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index --additional-urls $URL
+          arduino-cli core install esp32:esp32@3.2.0 --additional-urls $URL
+          arduino-cli lib update-index
+          arduino-cli lib install "Adafruit MCP23017 Arduino Library" "MIDI Library" "PubSubClient"
+
+      - name: compile
+        run: |
+          set -o pipefail
+          echo "#define FW_VERSION \"${GITHUB_SHA::7}\"" > chime/version.h
+          arduino-cli compile --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=disabled,FlashSize=4M,PartitionScheme=default,FlashMode=dio" \
+            --export-binaries --output-dir out chime 2>&1 | tee chime.log
+
+      - name: report compile errors
+        if: failure()
+        run: grep -E "error:|Error" chime.log | head -30 | while IFS= read -r l; do echo "::error::${l//%/%25}"; done
+
+      - name: package
+        run: |
+          B0=$(find ~/.arduino15 -name boot_app0.bin | head -1)
+          d=chime; mkdir -p pub/$d
+          cp out/chime.ino.bootloader.bin pub/$d/bootloader.bin
+          cp out/chime.ino.partitions.bin pub/$d/partitions.bin
+          cp "$B0" pub/$d/boot_app0.bin
+          cp out/chime.ino.bin pub/$d/chime.bin
+          cat > pub/$d/manifest.json <<JSON
+          {"name":"hall chimes","version":"${GITHUB_SHA::7}","builds":[{"chipFamily":"ESP32-S3","parts":[
+            {"path":"bootloader.bin","offset":0},{"path":"partitions.bin","offset":32768},
+            {"path":"boot_app0.bin","offset":57344},{"path":"chime.bin","offset":65536}]}]}
+          JSON
+          ls -la pub/$d
+          echo "::notice::chime ${GITHUB_SHA::7}: $(stat -c %s pub/$d/chime.bin) bytes"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chime
+          path: pub/chime/
+
+  publish:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: { group: gh-pages, cancel-in-progress: false }
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: chime, path: chime }
+      - name: publish chime/ only (rest of the flasher site untouched)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: chime
+          destination_dir: chime
+          keep_files: true

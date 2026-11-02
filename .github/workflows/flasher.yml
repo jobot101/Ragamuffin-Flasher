@@ -1,0 +1,31 @@
+# Phone flasher page (flasher/): rebuilds the page itself and publishes it over https://jobot101.github.io/ragamuffin-flasher/
+# with keep_files, so sol/ and chime/ stay as they are. The arm + camera files are read from jobot101/xarm's site.
+name: flasher
+
+on:
+  push:
+    branches: [main]
+    paths: [flasher/**, .github/workflows/flasher.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pages:
+    runs-on: ubuntu-latest
+    concurrency: { group: gh-pages, cancel-in-progress: false }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: build flasher page
+        working-directory: flasher
+        run: npm ci && npm run build
+      - name: publish the page only (board files untouched)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: flasher/dist
+          keep_files: true
