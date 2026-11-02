@@ -1,148 +1,121 @@
-/* Ragamuffin Studios: walnut and roasted maple, polished and blackened brass, stained glass.
-   The rose window is the one loud thing on the page; everything else stays quiet woodwork. */
-@import '@fontsource/im-fell-english/400.css';
-@import '@fontsource/im-fell-english/400-italic.css';
+/* Ragamuffin Hall brand (brand/ragamuffin-hall-logo.png): white paper, black ink linework, four flat glass
+   colours, a rock-gothic wordmark. The rose window is the one loud thing; everything else is ink on paper. */
+@import '@fontsource/new-rocker/400.css';
 @import '@fontsource/alegreya-sans/400.css';
 @import '@fontsource/alegreya-sans/700.css';
 
 :root {
-  --walnut: #211610;      /* page */
-  --walnut-2: #2c1e15;    /* panels */
-  --maple: #6e4528;       /* roasted maple: lines, edges */
-  --paper: #efe4cc;       /* hymnal paper: text */
-  --dim: #b8a283;
-  --brass: #c9a24a; --brass-hi: #efd895; --brass-lo: #84641f;
-  --patina: #1a1712;      /* blackened brass */
-  --lead: #120c08;        /* came between the glass */
-  --amber: #e39b2a; --sapphire: #3567bd; --emerald: #2f8f5f; --ruby: #b8293d;
-  --ok: #7fd8a4; --bad: #ff8a7a;
-  --gem: var(--amber);
-  --serif: 'IM Fell English', 'Iowan Old Style', Georgia, serif;
+  --paper: #ffffff; --ink: #060709; --dim: #4c5157; --wash: #f3f5f6;
+  --red: #c62b29; --yellow: #fdcd09; --blue: #60b6e5; --green: #8dad3e;
+  --ok: #3f7a1c; --bad: #b3221f;
+  --gem: var(--yellow);
+  --line: 2.5px solid var(--ink);
+  --display: 'New Rocker', 'Pirata One', Georgia, serif;
   --sans: 'Alegreya Sans', 'Gill Sans', 'Segoe UI', sans-serif;
-  color-scheme: dark;
+  color-scheme: light;
 }
-body[data-board="arm"]   { --gem: var(--amber); }
-body[data-board="cam"]   { --gem: var(--sapphire); }
-body[data-board="sol"]   { --gem: var(--emerald); }
-body[data-board="chime"] { --gem: var(--ruby); }
+body[data-board="arm"]   { --gem: var(--yellow); }
+body[data-board="cam"]   { --gem: var(--blue); }
+body[data-board="sol"]   { --gem: var(--green); }
+body[data-board="chime"] { --gem: var(--red); }
 
 * { box-sizing: border-box; }
-html { background: var(--walnut); }
-body {
-  margin: 0; color: var(--paper); font: 17px/1.5 var(--sans);
-  background:
-    radial-gradient(120% 60% at 50% -10%, rgba(227, 155, 42, .10), transparent 60%),
-    repeating-linear-gradient(90deg, rgba(0, 0, 0, .05) 0 2px, transparent 2px 7px, rgba(255, 220, 170, .015) 7px 8px, transparent 8px 13px),
-    var(--walnut);
-  min-height: 100vh;
-}
+html, body { background: var(--paper); }
+body { margin: 0; color: var(--ink); font: 17px/1.5 var(--sans); }
 .app { max-width: 540px; margin: 0 auto; padding: 18px 16px 36px; }
 [hidden] { display: none !important; }
-:focus-visible { outline: 2px solid var(--brass-hi); outline-offset: 2px; }
+:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 
-/* ---- hero ---- */
-.hero { text-align: center; padding: 2px 0 16px; }
-.rose { width: 144px; height: 144px; display: block; margin: 0 auto 6px; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, .55)); }
-.word { font: 400 44px/1 var(--serif); margin: 0; letter-spacing: .5px; color: var(--paper); }
-.sub { font: italic 400 21px/1.3 var(--serif); color: var(--brass); margin: 4px 0 0; }
-.fw { font: 400 14px var(--sans); color: var(--dim); margin-left: 6px; font-variant-numeric: tabular-nums; }
+/* ---- hero: the logo, with FLASHER where HALL sits ---- */
+.hero { text-align: center; padding: 4px 0 18px; }
+.rose { width: 176px; height: 176px; display: block; margin: 0 auto 4px; }
+.word { font: 400 45px/1 var(--display); margin: 0; letter-spacing: .5px; }
+.sub { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 2px 0 0; font: 400 28px/1 var(--display); }
+.rule { width: 78px; height: 5px; background: var(--ink); clip-path: polygon(0 50%, 88% 0, 100% 50%, 88% 100%); position: relative; }
+.rule.r { clip-path: polygon(0 50%, 12% 0, 100% 50%, 12% 100%); }
+.fw { margin: 8px 0 0; font-size: 14px; color: var(--dim); font-variant-numeric: tabular-nums; }
 
-/* the window: glass, lead, brass ring */
-.rose .petal { stroke: var(--lead); stroke-width: 2.4; stroke-linejoin: round; opacity: .9; transition: opacity .25s, filter .25s; }
-.rose .ring { fill: none; stroke: var(--brass); stroke-width: 3.5; }
-.rose .ring.in { stroke-width: 1.6; stroke: var(--brass-lo); }
-.rose .hub { fill: #3b2618; stroke: var(--lead); stroke-width: 2.4; }
-.rose .star { fill: var(--gem); stroke: var(--brass-hi); stroke-width: 1.4; stroke-linejoin: round; transition: fill .3s; }
-.rose .shine { pointer-events: none; }
-body.flashing .rose .petal { opacity: .2; }
-body.flashing .rose .petal.lit { opacity: 1; filter: brightness(1.12); }
-body.done .rose { animation: glow 1.6s ease-out 1; }
-@keyframes glow { 0% { filter: drop-shadow(0 0 0 rgba(239, 216, 149, 0)); } 35% { filter: drop-shadow(0 0 22px rgba(239, 216, 149, .8)); } 100% { filter: drop-shadow(0 6px 18px rgba(0, 0, 0, .55)); } }
+/* window states: empty glass is white; flashing colours it in petal by petal */
+.rose .petal { transition: fill .25s; }
+body.flashing .rose .petal:not(.lit) { fill: var(--paper); }
+body.done .rose .dash-r { animation: spin 1.4s ease-out 1; }
+@keyframes spin { to { stroke-dashoffset: -120; } }
 
 /* ---- panels ---- */
-.panel {
-  background: linear-gradient(180deg, rgba(255, 230, 190, .035), transparent 40%), var(--walnut-2);
-  border: 1px solid var(--maple); border-radius: 6px; padding: 16px; margin-bottom: 16px;
-  box-shadow: inset 0 1px 0 rgba(255, 225, 180, .06), 0 2px 0 rgba(0, 0, 0, .35);
-}
-h2 { font: 400 23px/1.2 var(--serif); margin: 0 0 12px; color: var(--paper); }
+.panel { background: var(--paper); border: var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+h2 { font: 400 25px/1.15 var(--display); margin: 0 0 12px; }
 p { margin: 0; }
 
-/* ---- board list: one engraved list, not a grid of cards ---- */
-.boards { display: flex; flex-direction: column; border-top: 1px solid rgba(110, 69, 40, .7); margin: 0 -16px 4px; }
+/* ---- board list: panes in one frame, leaded like the window ---- */
+.boards { display: flex; flex-direction: column; border-top: var(--line); margin: 0 -16px 4px; }
 .board {
-  display: grid; grid-template-columns: 22px 1fr; column-gap: 12px; align-items: center; text-align: left;
-  font: inherit; color: var(--paper); background: none; border: 0; border-bottom: 1px solid rgba(110, 69, 40, .7);
-  border-left: 3px solid transparent; padding: 10px 16px 10px 13px; cursor: pointer; width: 100%;
+  display: grid; grid-template-columns: 24px 1fr; column-gap: 12px; align-items: center; text-align: left;
+  font: inherit; color: var(--ink); background: none; border: 0; border-bottom: 2px solid var(--ink);
+  padding: 10px 16px; cursor: pointer; width: 100%; border-radius: 0;
 }
 .board b { font-size: 19px; line-height: 1.2; }
 .board small { grid-column: 2; color: var(--dim); font-size: 14px; line-height: 1.3; }
-.board .gem {
-  grid-row: span 2; width: 18px; height: 18px; border-radius: 50%; justify-self: center;
-  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .7) 0 12%, transparent 13%), var(--g);
-  box-shadow: inset 0 -3px 4px rgba(0, 0, 0, .45), 0 0 0 2px var(--brass-lo);
-  opacity: .55; transition: opacity .2s, box-shadow .2s;
-}
-.board[data-board="arm"]   { --g: var(--amber); }
-.board[data-board="cam"]   { --g: var(--sapphire); }
-.board[data-board="sol"]   { --g: var(--emerald); }
-.board[data-board="chime"] { --g: var(--ruby); }
-.board.on { background: rgba(201, 162, 74, .09); border-left-color: var(--brass); }
-.board.on .gem { opacity: 1; box-shadow: inset 0 -3px 4px rgba(0, 0, 0, .35), 0 0 0 2px var(--brass), 0 0 12px var(--g); }
+.board .gem { grid-row: span 2; width: 20px; height: 20px; border-radius: 50%; justify-self: center; background: var(--g); border: 2px solid var(--ink); }
+.board[data-board="arm"]   { --g: var(--yellow); }
+.board[data-board="cam"]   { --g: var(--blue); }
+.board[data-board="sol"]   { --g: var(--green); }
+.board[data-board="chime"] { --g: var(--red); }
+.board.on { background: color-mix(in srgb, var(--g) 26%, var(--paper)); box-shadow: inset 7px 0 0 var(--g), inset 9px 0 0 var(--ink); padding-left: 22px; }
+.board.on .gem { width: 24px; height: 24px; }
 .board:disabled { opacity: 1; }
 
 /* ---- install modes (arm only) ---- */
 .modes { padding-top: 8px; }
 .mode { display: flex; gap: 12px; align-items: flex-start; padding: 9px 0; cursor: pointer; }
-.mode input { margin-top: 5px; accent-color: var(--brass); width: 18px; height: 18px; flex: none; }
+.mode input { margin-top: 5px; accent-color: var(--ink); width: 18px; height: 18px; flex: none; }
 .mode b { display: block; font-size: 17px; }
 .mode small { display: block; color: var(--dim); font-size: 14px; line-height: 1.35; margin-top: 1px; }
 
-/* ---- buttons ---- */
+/* ---- buttons: ink outlines; the main one is a pane of the selected board's glass ---- */
 button, a.btn {
-  font: 700 17px var(--sans); color: var(--paper); background: #3a281c; border: 1px solid var(--maple); border-radius: 4px;
-  padding: 12px 16px; cursor: pointer; width: 100%; box-shadow: inset 0 1px 0 rgba(255, 225, 180, .08);
+  font: 700 17px var(--sans); color: var(--ink); background: var(--paper); border: var(--line); border-radius: 10px;
+  padding: 12px 16px; cursor: pointer; width: 100%;
 }
-button:disabled { opacity: .45; cursor: default; }
+button:active:not(:disabled), a.btn:active { background: var(--wash); }
+button:disabled { opacity: .4; cursor: default; }
 a.btn { display: flex; flex-direction: column; align-items: center; gap: 1px; text-decoration: none; margin-top: 10px; }
 a.btn small { color: var(--dim); font-weight: 400; font-size: 13px; }
 
-/* the polished brass plate, engraved */
 .plate, a.btn.plate {
-  margin-top: 14px; padding: 17px 16px 15px; border: 1px solid var(--brass-lo); border-radius: 3px;
-  font: 400 25px/1.1 var(--serif); color: #2a1a0b; text-shadow: 0 1px 0 rgba(255, 244, 205, .55);
-  background:
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 3px),
-    linear-gradient(180deg, var(--brass-hi), var(--brass) 45%, #a9822f 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 250, 225, .7), inset 0 -2px 0 rgba(90, 60, 15, .35), 0 3px 0 rgba(0, 0, 0, .4);
+  margin-top: 14px; padding: 15px 16px 13px; border: 3px solid var(--ink); border-radius: 12px;
+  background: var(--gem); color: var(--ink); font: 400 27px/1.1 var(--display);
+  box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 5px var(--ink);
 }
-.plate:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 1px 0 rgba(255, 250, 225, .5), 0 1px 0 rgba(0, 0, 0, .4); }
-.plate:disabled { opacity: .5; filter: saturate(.6); }
-a.btn.plate small { font: 400 14px var(--sans); color: #4a3512; text-shadow: none; }
+.plate:active:not(:disabled) { background: var(--gem); filter: brightness(.92); }
+a.btn.plate { background: var(--yellow); }
+a.btn.plate small { font: 400 14px var(--sans); color: var(--ink); }
 
-/* progress: brass in a walnut groove */
-.groove { height: 8px; background: var(--lead); border-radius: 99px; overflow: hidden; margin: 14px 0 10px; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .8); }
-.groove div { height: 100%; width: 0; background: linear-gradient(90deg, var(--brass-lo), var(--brass-hi)); transition: width .2s; }
+/* progress: the window's red/blue dashed ring, filling a leaded channel */
+.groove { height: 14px; border: var(--line); border-radius: 99px; overflow: hidden; margin: 14px 0 10px; background: var(--paper); }
+.groove div {
+  height: 100%; width: 0; transition: width .2s;
+  background: repeating-linear-gradient(90deg, var(--red) 0 10px, var(--paper) 10px 12px, var(--blue) 12px 22px, var(--paper) 22px 24px);
+}
 .status { font-size: 16px; line-height: 1.45; }
-.status.ok { color: var(--ok); }
-.status.bad { color: var(--bad); }
+.status.ok { color: var(--ok); font-weight: 700; }
+.status.bad { color: var(--bad); font-weight: 700; }
 .hint { color: var(--dim); font-size: 14px; line-height: 1.5; margin: 12px 0 0; }
-.hint b { color: var(--paper); }
+.hint b { color: var(--ink); }
 
-/* boot log on blackened brass */
+/* boot log: ink */
 pre {
-  background: var(--patina); border: 1px solid #3a3226; border-radius: 3px; padding: 10px; margin: 14px 0 0;
-  color: #d9ccb0; font: 11.5px/1.4 ui-monospace, 'SF Mono', Menlo, monospace;
-  height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+  background: var(--ink); border-radius: 8px; padding: 10px; margin: 14px 0 0; color: #f3f5f6;
+  font: 11.5px/1.4 ui-monospace, 'SF Mono', Menlo, monospace; height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-all;
 }
-pre:empty { height: 0; padding: 0; border: 0; margin: 0; }
+pre:empty { height: 0; padding: 0; margin: 0; }
 
 .notice p { color: var(--dim); font-size: 15px; line-height: 1.5; margin: 0 0 12px; }
 .wifi .hint:first-of-type { margin-top: 0; }
-.small-link { display: block; margin-top: 12px; color: var(--brass); font-size: 14px; }
+.small-link { display: block; margin-top: 12px; color: var(--ink); font-size: 14px; text-decoration-color: var(--red); text-decoration-thickness: 2px; }
 
-footer { text-align: center; font: italic 400 15px var(--serif); color: var(--dim); padding-top: 6px; }
+footer { text-align: center; font-size: 14px; color: var(--dim); padding-top: 4px; }
 
+@media (max-width: 380px) { .word { font-size: 39px; } .rule { width: 56px; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
