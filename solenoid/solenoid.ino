@@ -19,6 +19,7 @@
 #include <Preferences.h>
 #include <Update.h>
 #include "esp_timer.h"
+#include "profile.h"          // struct Step (in a header so Arduino's auto-prototypes see it)
 
 #if __has_include("version.h")
 #include "version.h"                // CI writes FW_VERSION = the short commit SHA (same as sol/manifest.json)
@@ -77,7 +78,6 @@ bool repProf = false;             // repeat plays the profile instead of a strik
 
 // Profiles: a hit is a list of steps "duty:ms" played back to back, e.g. "100:16,0:35,100:12" (a flam).
 // "duty:h" holds that duty until STOP / auto-off (strike-and-damp). Max 32 steps, ms 1-5000.
-struct Step { uint8_t d; uint16_t ms; bool hold; };
 Step prof[32]; int profN = 0, profI = 0;
 String profStr = "100:20";
 uint32_t repNext = 0, repGap = 250;
