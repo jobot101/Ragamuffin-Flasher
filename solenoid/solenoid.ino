@@ -73,7 +73,7 @@ void staService() {
 
 float bucket = BUCKET_MS;
 uint32_t lastRefill = 0, strikes = 0, clipped = 0;
-int repLeft = 0, repV = 100;
+int repLeft = 0, repV = 100, repMs = 0;   // repMs > 0: repeat strikes that exact length
 bool repProf = false;             // repeat plays the profile instead of a strike
 
 // Profiles: a hit is a list of steps "duty:ms" played back to back, e.g. "100:16,0:35,100:12" (a flam).
@@ -118,12 +118,15 @@ int msForVel(int v) {
   return cfg.minMs + (cfg.maxMs - cfg.minMs) * (v - 1) / 126;
 }
 
-// returns ms actually fired (0 = skipped: too hot)
-int strike(int vel) {
+int strikeMs(int ms);
+int strike(int vel) { return strikeMs(msForVel(vel)); }
+
+// exact-length strike; returns ms actually fired (0 = skipped: too hot)
+int strikeMs(int ms) {
   refill();
-  int ms = msForVel(vel);
+  ms = constrain(ms, 1, 2000);
   if (cfg.lim) {
-    if (bucket < ms) { clipped++; ms = (int)bucket; if (ms < cfg.minMs) return 0; }
+    if (bucket < ms) { clipped++; ms = (int)bucket; if (ms < 1) return 0; }
     bucket -= ms;
   }
   esp_timer_stop(tmr);
@@ -267,14 +270,16 @@ main{max-width:480px;margin:0 auto;padding:16px}h1{font-size:20px;margin:4px 0 1
 .card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px}
 button{font:inherit;border:0;border-radius:10px;padding:12px;background:#333;color:var(--fg);width:100%;touch-action:none;user-select:none;-webkit-user-select:none}
 .big{font-size:22px;padding:26px;background:var(--acc);color:#111;font-weight:700}
-.big:active,.held{filter:brightness(1.3)}.row{display:flex;gap:8px;margin-top:8px}.row>*{flex:1}.pre{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.pre button{padding:10px 4px;font-size:14px}.pre .on{background:var(--acc);color:#111}
+.big:active,.held{filter:brightness(1.3)}.row{display:flex;gap:8px;margin-top:8px}.row>*{flex:1}.pre{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.pre button{padding:10px 4px;font-size:14px}.pre .on,.seg .on{background:var(--acc);color:#111}.seg button{padding:8px;font-size:14px}[hidden]{display:none!important}
 label{display:flex;justify-content:space-between;align-items:center;margin:8px 0;color:var(--dim)}
 input[type=range]{width:100%}input[type=number],select{width:90px;font:inherit;padding:6px;border-radius:8px;border:0;background:#333;color:var(--fg)}
 #st{font:13px ui-monospace,monospace;color:var(--dim)}.heat{height:6px;background:#333;border-radius:3px;margin-top:6px}.heat div{height:100%;background:var(--bad);border-radius:3px;width:0}
 </style></head><body><main>
 <h1>Solenoid <small id="fw"></small></h1>
 <div class="card"><button class="big" id="strike">STRIKE</button>
-<label>velocity <b id="vv">100</b></label><input type="range" id="vel" min="1" max="127" value="100">
+<div class="row seg"><button id="mlen" class="on">by length</button><button id="mvel">by velocity</button></div>
+<div id="glen"><label>length <span><input type="number" id="lenN" min="1" max="2000" value="20"> ms</span></label><input type="range" id="len" min="1" max="200" value="20"></div>
+<div id="gvel" hidden><label>velocity <b id="vv">100</b></label><input type="range" id="vel" min="1" max="127" value="100"></div>
 <div class="row"><button id="hold">HOLD (press)</button><button id="stop">STOP</button></div>
 <div class="heat"><div id="heat"></div></div><div id="st">…</div></div>
 <div class="card"><b>Live power</b> <small style="color:var(--dim)">drag to drive the coil at any duty; STOP or 0 = off</small>
@@ -319,7 +324,7 @@ const WHY={2:'auth expired',15:'wrong password',201:'not found (2.4 GHz only)',2
 function show(j){if(!j||j.err){$('st').textContent=j?j.err:'no reply';return}c=j;const n=j.net||{};
  $('nets').textContent=n.up?`on ${n.ssid} · ${n.ip} · solenoid.local`:n.ssid?`joining ${n.ssid}…${n.why?' ('+(WHY[n.why]||'reason '+n.why)+')':''}`:'not set — own WiFi only';
  $('fw').textContent=j.fw;$('heat').style.width=j.heat+'%';
- $('st').textContent=`GPIO ${j.pin} · ${j.state} · ${Math.round(j.min+(j.max-j.min)*($('vel').value-1)/126)} ms · strikes ${j.strikes} · heat-clipped ${j.clipped}${j.rep?' · repeat '+j.rep:''}`;
+ $('st').textContent=`GPIO ${j.pin} · ${j.state} · ${byLen?$('lenN').value:Math.round(j.min+(j.max-j.min)*($('vel').value-1)/126)} ms · strikes ${j.strikes} · heat-clipped ${j.clipped}${j.rep?' · repeat '+j.rep:''}`;
  $('rep').textContent=j.rep?'Stop':'Go'}
 function fill(j){show(j);if(!$('prof').value)$('prof').value=j.prof;$('ssid').value=(j.net&&j.net.ssid)||HOME;$('fwv').textContent='running '+j.fw;$('lim').checked=!!j.lim;$('pin').value=j.pin;$('inv').checked=!!j.inv;
  ['min','max','kick','mhold','hz','sp'].forEach(k=>$(k).value=j[k]);$('hold_').value=j.hold}
@@ -331,7 +336,13 @@ let lt=0;const setLive=p=>{$('live').value=p;$('lv').textContent=p+' %';clearTim
 $('live').oninput=()=>setLive($('live').value);
 [['l25',25],['l50',50],['l100',100],['l0',0]].forEach(([id,p])=>$(id).onclick=()=>setLive(p));
 $('vel').oninput=()=>{$('vv').textContent=$('vel').value;show(c)};
-$('strike').addEventListener('pointerdown',e=>{e.preventDefault();go('/s?v='+$('vel').value)});
+let byLen=true;const ls=(k,v)=>{try{v===undefined?v=localStorage.getItem(k):localStorage.setItem(k,v)}catch(e){}return v};
+const setMode=l=>{byLen=l;$('mlen').classList.toggle('on',l);$('mvel').classList.toggle('on',!l);$('glen').hidden=!l;$('gvel').hidden=l;ls('mode',l?'len':'vel');show(c)};
+const setLen=v=>{v=Math.max(1,Math.min(2000,+v||1));$('lenN').value=v;$('len').value=Math.min(v,200);ls('len',v);show(c)};
+$('mlen').onclick=()=>setMode(true);$('mvel').onclick=()=>setMode(false);
+$('len').oninput=()=>setLen($('len').value);$('lenN').onchange=()=>setLen($('lenN').value);
+if(ls('len'))setLen(ls('len'));if(ls('mode')==='vel')setMode(false);
+$('strike').addEventListener('pointerdown',e=>{e.preventDefault();go(byLen?'/s?ms='+$('lenN').value:'/s?v='+$('vel').value)});
 const h=$('hold');
 h.addEventListener('pointerdown',e=>{e.preventDefault();h.setPointerCapture(e.pointerId);h.classList.add('held');go('/h?on=1')});
 ['pointerup','pointercancel','lostpointercapture'].forEach(t=>h.addEventListener(t,()=>{if(h.classList.contains('held')){h.classList.remove('held');go('/h?on=0')}}));
@@ -341,7 +352,7 @@ $('scan').onclick=()=>{$('scan').textContent='scanning…';fetch('/scan').then(r
 $('clark').onclick=()=>{$('ssid').value=HOME;$('wpass').focus()};
 $('join').onclick=()=>{if(!$('ssid').value)return;const q=new URLSearchParams({ssid:$('ssid').value,pass:$('wpass').value});go('/wifi?'+q)};
 $('forget').onclick=()=>{if(confirm('Forget the hall WiFi?'))go('/wifi?forget=1')};
-$('rep').onclick=()=>go(c.rep?'/stop':`/r?n=${$('n').value}&bpm=${$('bpm').value}&v=${$('vel').value}&prof=${$('rprof').checked?1:0}`);
+$('rep').onclick=()=>go(c.rep?'/stop':`/r?n=${$('n').value}&bpm=${$('bpm').value}&v=${$('vel').value}${byLen?'&ms='+$('lenN').value:''}&prof=${$('rprof').checked?1:0}`);
 // presets: what a spring-return push-pull can do (times for a JF-0530B on 12 V; use stretch for other coils/voltages)
 const PRESETS=[
  ['Tap','40:12','Soft touch: low power, short. Quiet notes and checking the strike point.'],
@@ -383,7 +394,7 @@ int arg(const char* k, int d) { return server.hasArg(k) ? server.arg(k).toInt() 
 void setupWeb() {
   server.on("/", [] { server.send_P(200, "text/html", PAGE); });
   server.on("/state", sendState);
-  server.on("/s", [] { strike(arg("v", 100)); sendState(); });
+  server.on("/s", [] { if (server.hasArg("ms")) strikeMs(arg("ms", 20)); else strike(arg("v", 100)); sendState(); });
   server.on("/h", [] { if (arg("on", 0)) holdOn(); else release(); sendState(); });
   server.on("/d", [] { live(arg("p", 0)); sendState(); });
   server.on("/play", [] {           // /play?s=<profile> sets + plays; /play alone replays the current one
@@ -393,7 +404,7 @@ void setupWeb() {
   });
   server.on("/stop", [] { stopAll(); sendState(); });
   server.on("/r", [] {
-    repV = arg("v", 100); repGap = 60000 / constrain(arg("bpm", 240), 1, 3000);
+    repV = arg("v", 100); repMs = arg("ms", 0); repGap = 60000 / constrain(arg("bpm", 240), 1, 3000);
     repProf = arg("prof", 0); repLeft = constrain(arg("n", 16), 1, 10000); repNext = millis(); sendState();
   });
   server.on("/cfg", [] {
@@ -497,6 +508,6 @@ void loop() {
   if (!up && was && millis() - tDown > 120) { tDown = millis(); strike(100); }
   was = up;
 
-  if (repLeft > 0 && (int32_t)(millis() - repNext) >= 0) { if (repProf) playProfile(); else strike(repV); repLeft--; repNext += repGap; }
+  if (repLeft > 0 && (int32_t)(millis() - repNext) >= 0) { if (repProf) playProfile(); else if (repMs > 0) strikeMs(repMs); else strike(repV); repLeft--; repNext += repGap; }
   delay(1);
 }
