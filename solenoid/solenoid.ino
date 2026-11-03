@@ -359,6 +359,7 @@ $('forget').onclick=()=>{if(confirm('Forget the hall WiFi?'))go('/wifi?forget=1'
 $('rep').onclick=()=>go(c.rep?'/stop':`/r?n=${$('n').value}&bpm=${$('bpm').value}&v=${$('vel').value}${byLen?'&ms='+$('lenN').value:''}&prof=${$('rprof').checked?1:0}`);
 // presets: what a spring-return push-pull can do (times for a JF-0530B on 12 V; use stretch for other coils/voltages)
 const PRESETS=[
+ ['Rocker note','100:25,40:h','For the V8 board rocker: kick the hammer in, then hold the plunger seated so the felt stays off and the tube rings. STOP = felt drops back and damps it (like letting go of a piano key).'],
  ['Tap','40:12','Soft touch: low power, short. Quiet notes and checking the strike point.'],
  ['Strike','100:20','A normal full hit, then off so the spring pulls the plunger back.'],
  ['Hammer','100:45','Long full-power hit. Loudest, but the plunger rests on the tube a moment, so it rings shorter.'],
