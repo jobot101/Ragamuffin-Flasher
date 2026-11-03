@@ -35,21 +35,23 @@
 #define BOOT_BTN    0
 #define RES_BITS    10
 #define FULL        1023          // ledcWrite turns max into 100 % on
-#define BUCKET_MS   400.0f        // full-power ms that can go out back to back (24 V on a 12 V coil)
-#define REFILL_MS_S 300.0f        // full-power ms per second on average (30 % duty at 24 V ~ 1.2x a 12 V coil's rating)
-                                  // at 12 V (= coil rating) the limiter is off and hold can go to 100 %
+#define BUCKET_MS   400.0f        // heat limiter: full-power ms that can go out back to back (24 V on a 12 V coil)
+#define REFILL_MS_S 300.0f        // heat limiter: full-power ms per second on average (30 % duty at 24 V)
 
+// Defaults = the coil on the bench: JF-0530B 12 V push-pull (10 mm stroke, spring return) on a 12 V supply.
+// The page's "JF-0530B, 12 V" button puts these back (/cfg?preset=jf12).
 struct Cfg {
   int pin = 4;
   bool inv = false;               // active-low driver
-  int minMs = 3, maxMs = 25;      // strike pulse at velocity 1 / 127
-  int kickMs = 30;                // hold: full-power pull-in
-  int holdPct = 35;               // hold: PWM duty after the kick (35 % of 24 V ~ 8.4 V avg)
+  int minMs = 8, maxMs = 30;      // strike pulse at velocity 1 / 127 (8 ms = soft but still reaches; 30 = full throw)
+  int kickMs = 40;                // hold: full-power pull-in (seats the plunger from rest)
+  int holdPct = 40;               // hold: PWM duty after the kick (~4.8 V avg keeps it seated, stays cool)
   int maxHoldS = 8;               // hold auto-release
   int hz = 20000;                 // PWM freq (opto-isolated modules: 1000)
-  bool lim = true;                // heat limiter on strikes/kicks (for 12 V coils run at 24 V)
+  bool lim = false;               // heat limiter off: 12 V is the coil's rating (turn on when it moves to 24 V)
   int spPct = 100;                // strike power: PWM duty during a strike pulse
 } cfg;
+const Cfg JF12;                   // a copy of the defaults above, for the reset button
 
 enum State { IDLE, STRIKE, KICK, HOLD, LIVE, PROFILE };
 volatile State state = IDLE;
@@ -244,6 +246,7 @@ String cfgJson() {
 
 String applyCfg(std::function<bool(const char*)> has, std::function<int(const char*)> get) {
   int oldPin = cfg.pin, oldHz = cfg.hz; bool oldInv = cfg.inv;
+  if (has("preset")) { int p = cfg.pin; bool i = cfg.inv; cfg = JF12; cfg.pin = p; cfg.inv = i; }   // keeps wiring
   if (has("pin")) { int p = get("pin"); if (!pinOk(p)) return "pin not allowed"; cfg.pin = p; }
   if (has("inv"))   cfg.inv = get("inv");
   if (has("min"))   cfg.minMs = constrain(get("min"), 1, 2000);
@@ -304,7 +307,8 @@ input[type=range]{width:100%}input[type=number],select{width:90px;font:inherit;p
 <label>strike power % <input type="number" id="sp" min="1" max="100"></label>
 <label>hold kick ms (0 = none) <input type="number" id="kick" min="0" max="2000"></label><label>hold % (0–100) <input type="number" id="hold_" min="0" max="100"></label>
 <label>auto-off s (0 = never) <input type="number" id="mhold" min="0" max="600"></label><label>PWM Hz (50–40000) <input type="number" id="hz" min="50" max="40000"></label>
-<button id="save">Save all</button></div>
+<div class="row"><button id="jf12">JF-0530B, 12 V</button><button id="save">Save all</button></div>
+<p style="color:var(--dim);font-size:12px;margin-top:8px">JF-0530B, 12 V puts back the settings for this coil on 12 V (keeps GPIO and active low).</p></div>
 <div class="card"><b>Hall WiFi</b> <small id="nets"></small>
 <label>network <input id="ssid" list="aps" style="width:160px;font:inherit;padding:6px;border-radius:8px;border:0;background:#333;color:var(--fg)"></label><datalist id="aps"></datalist>
 <label>password <input id="wpass" type="password" style="width:160px;font:inherit;padding:6px;border-radius:8px;border:0;background:#333;color:var(--fg)"></label>
@@ -374,6 +378,7 @@ PRESETS.forEach(([n,str,d])=>{const b=document.createElement('button');b.textCon
  document.querySelectorAll('.pre button').forEach(x=>x.classList.toggle('on',x===b));$('prof').value=str;$('pdesc').textContent=d;playP(str)};$('pre').append(b)});
 $('play').addEventListener('pointerdown',e=>{e.preventDefault();playP($('prof').value)});
 $('prof').addEventListener('change',()=>{document.querySelectorAll('.pre button').forEach(x=>x.classList.remove('on'));$('pdesc').textContent='Custom profile.'});
+$('jf12').onclick=()=>fetch('/cfg?preset=1').then(r=>r.json()).then(j=>{fill(j);$('saved').textContent='JF-0530B 12 V loaded ✓';setLen(20)});
 $('save').onclick=()=>go(`/cfg?lim=${val('lim')}&sp=${$('sp').value}&pin=${$('pin').value}&inv=${$('inv').checked?1:0}&min=${$('min').value}&max=${$('max').value}&kick=${$('kick').value}&hold=${$('hold_').value}&mhold=${$('mhold').value}&hz=${$('hz').value}`).then(()=>fetch('/state').then(r=>r.json()).then(fill));
 function send(blob,btn){const x=new XMLHttpRequest(),d=new FormData();d.append('f',blob,'solenoid.bin');
  x.upload.onprogress=e=>btn.textContent='writing '+Math.round(e.loaded*100/e.total)+'%';
