@@ -59,3 +59,25 @@ Repo `jobot101/Ragamuffin-Flasher`, folder `solenoid/` (moved from `jobot101/xar
 - **Scale to 24 channels:** the plan is I2C solenoid drivers from the ESP32-S3 and MQTT into the hall's ecosystem. The owner already has MOSFET modules.
 - **Coils:** JF-0530B at 24 V. Keep the 24 V heat limits; tune strike/kick/hold per tube.
 - **Later:** his own key console that also outputs MIDI.
+
+## Test bench + hit profiles (Nov 2 2026)
+- **Every setting is open and applies the moment it changes:**
+
+  | setting | range |
+  |---|---|
+  | strike min/max ms | 1–2000 |
+  | strike power % | 1–100 |
+  | hold kick ms | 0–2000 (0 = none) |
+  | hold % | 0–100 |
+  | auto-off s | 0–600 (0 = never) |
+  | PWM | 50 Hz–40 kHz (falls back to 1 kHz if the LEDC can't run that frequency at 10 bits) |
+
+- **Heat limiter** is a switch (`lim`, NVS `lim`). Off = no limit at all. It replaces the old 12/24 V supply setting.
+- **Live power:** a 0–100 % slider, `/d?p=`. Serial `d<pct>`.
+- **Profiles:**
+  - A profile is a list of steps `duty:ms,...`; `duty:h` holds until STOP or auto-off. Max 32 steps, ms 1–5000.
+  - `/play?s=<profile>` sets and fires it; `/play` replays the current one. Serial `P<profile>`.
+  - Stored in NVS as `prof`.
+  - The heat limiter counts duty×ms.
+  - Repeat can play the profile (`/r?...&prof=1`).
+- **Page presets** (times for a JF-0530B on 12 V; "stretch %" scales them): Tap, Strike, Hammer, Ring, Flam, Triple, Roll, Soft return, Ramp, Strike + damp, Buzz, Full on.
