@@ -1,0 +1,3 @@
+{"name":"hall chimes box","box":true,"version":"a1e37f7","builds":[{"chipFamily":"ESP32-S3","parts":[
+  {"path":"bootloader.bin","offset":0},{"path":"partitions.bin","offset":32768},
+  {"path":"boot_app0.bin","offset":57344},{"path":"chime_box.bin","offset":65536}]}]}
