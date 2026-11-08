@@ -25,12 +25,41 @@ GitHub Actions is the build machine. Ship a change by pushing to `main`, then re
     - an MQTT broker set on the page (blank = off), under topics `ragamuffin/hall/chimes/{note,mute,status,played}`;
     - **Install latest** posts to `/update`, and the coils stay muted while it writes.
   - **NVS namespace `chime`:** `ssid wpass mhost mport muser mpass`.
-- **`chime_box/`:** the same bell machine on the original **ESP32-S3-BOX** (TT21100 touch, ILI9342C) and its dock. It's the hall chimes' display + control board.
-  - **Pins:** drivers on PMOD1 SDA 41 / SCL 40, MIDI on GPIO 44, and triggers on driver 0x20 port B (B6 = solenoid tap, B7 = mute). The BOX's own pins are LCD 4/5/6/7/45/48, I2C 8/18 and touch INT 3: never use them for anything else.
-  - **Screen:** LovyanGFX with an explicit S3-BOX config (copied from its autodetect). It shows 25 tube keys, Mute, Soft/Med/Hard and TAP. The UI task runs on core 0 and only queues notes.
-  - **Solenoid tester output:** one MOSFET on a dock GPIO (default 9; set on the page, applied at boot). It strikes only, 3–30 ms, with at least 150 ms between taps. The BOOT button taps it too. Tube pulses are capped at 30 ms.
+- **`chime_box/`:** the hall chimes' control firmware on the original **ESP32-S3-BOX** (TT21100 touch, ILI9342C, ES8311 speaker) and its dock. Modular since 2026-11-08:
+  - **Read first:**
+    - `chimes.h` is the shared contract.
+    - `DESIGN.md` is the spec and the safety rules.
+    - `ROUND2.md` covers Verna's prompts, power sense, wear, MIDI record, presets and pedals.
+    - `BRAND-UI.md` is the Ragamuffin Workshop look.
+  - **Modules:**
+    - `core.cpp`: core 1, the only code that writes a coil.
+    - `config.cpp`: NVS.
+    - `net.cpp`: WiFi, web, MQTT and serial.
+    - `page.cpp`: the phone page.
+    - `testpage.cpp`: `/test`, which cycles through every connected solenoid.
+    - `cal.cpp`: sweep, tune and walk.
+    - `ui.cpp`: the screen, HOME / COILS / PLAY / PANIC.
+    - `audio.cpp`: Verna on the speaker.
+  - **Generated files:** `verna_lines.cpp` and `presets.cpp` (the Tribe of Abraham presets, MIT). Regenerate them with `chime_box/tools/`; never hand-edit them.
+  - **Pins:**
+    - Drivers: MCP23017 0x20–0x27 on SDA 41 / SCL 40, up to 64 outputs. Outputs 1–25 are the tubes.
+    - MIDI on G14 (44 can be chosen instead). Panel PANIC button on G10. BOOT is panic.
+    - The tester MOSFET is on G9. Never put a pull-up (pedal, power sense or button) on G9.
+    - The BOX's own pins are LCD 4/5/6/7/45/48, I2C 8/18, touch INT 3 and audio 2/15/16/17/46/47. Never use them for anything else.
+  - **Safety:**
+    - A 30 ms hard cap, with no hold anywhere.
+    - A supply budget in mA, a heat bucket per coil, and an off gap before the next strike.
+    - A flash-write hold around every NVS or OTA write.
+    - Everything off at boot (`driversOffNow` first) and on panic.
   - **Never put the plain `chime.bin` on a BOX:** it drives the screen's pins. Install latest only accepts a manifest with `"box": true`.
-  - **NVS `chime` also holds** `spin sinv sms`. USB serial `wifi<TAB>ssid<TAB>pass` sets the hall WiFi.
+  - **NVS:** namespace `chime`; DESIGN.md and ROUND2.md list the keys. USB serial `wifi<TAB>ssid<TAB>pass` sets the hall WiFi, and `help` lists the bench commands.
+  - **Local OTA from the PC:**
+
+    ```
+    curl -F "f=@chime_box.ino.bin" http://192.168.1.31/update
+    ```
+
+    After it, check `/status` `fw`.
 
 ## Build / publish
 
