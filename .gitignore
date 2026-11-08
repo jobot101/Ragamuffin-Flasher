@@ -2,3 +2,4 @@ flasher/node_modules/
 flasher/dist/
 solenoid/version.h
 chime/version.h
+chime_box/version.h

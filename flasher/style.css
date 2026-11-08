@@ -18,6 +18,7 @@ body[data-board="arm"]   { --gem: var(--yellow); }
 body[data-board="cam"]   { --gem: var(--blue); }
 body[data-board="sol"]   { --gem: var(--green); }
 body[data-board="chime"] { --gem: var(--red); }
+body[data-board="chimebox"] { --gem: var(--red); }
 
 * { box-sizing: border-box; }
 html, body { background: var(--paper); }
@@ -60,6 +61,7 @@ p { margin: 0; }
 .board[data-board="cam"]   { --g: var(--blue); }
 .board[data-board="sol"]   { --g: var(--green); }
 .board[data-board="chime"] { --g: var(--red); }
+.board[data-board="chimebox"] { --g: var(--red); }
 .board.on { background: color-mix(in srgb, var(--g) 26%, var(--paper)); box-shadow: inset 7px 0 0 var(--g), inset 9px 0 0 var(--ink); padding-left: 22px; }
 .board.on .gem { width: 24px; height: 24px; }
 .board:disabled { opacity: 1; }

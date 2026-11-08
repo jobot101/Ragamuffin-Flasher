@@ -4,6 +4,7 @@
 //                                                       read from its Pages site (CORS *)
 //   solenoid  = solenoid tester for any ESP32-S3 board (4 MB image, runs on any flash size; solenoid/ here)
 //   chime     = hall chimes: MIDI in + 4 MCP23017 solenoid drivers on any ESP32-S3 (4 MB image; chime/ here)
+//   chimebox  = hall chimes on the ESP32-S3-BOX: same, plus its screen as the front panel (16 MB; chime_box/ here)
 // Android Chrome can't reach these through Web Serial, so we open them over WebUSB:
 //   303A (native)  -> Google's web-serial-polyfill (CDC-ACM)
 //   1A86 (CH340)   -> esptool-js's own WebUSBSerialPort
@@ -19,6 +20,7 @@ const BOARDS = {
   cam: { base: XARM + 'cam/', label: 'camera', expectMB: 4 },
   sol: { base: './sol/', label: 'solenoid tester', expectMB: 0 },   // 0 = any flash size
   chime: { base: './chime/', label: 'hall chimes', expectMB: 0 },
+  chimebox: { base: './chimebox/', label: 'hall chimes BOX', expectMB: 16 },
 }
 
 const $ = (id) => document.getElementById(id)
@@ -36,7 +38,7 @@ function roseFill(f) { const n = Math.round(f * petals.length); petals.forEach((
 const terminal = { clean() { logEl.textContent = '' }, writeLine: (s) => log(s + '\n'), write: (s) => log(s) }
 
 let board = 'arm'
-let manifests = {}          // arm: manifest, cam: { qspi, opi }, sol: manifest, chime: manifest
+let manifests = {}          // arm: manifest, cam: { qspi, opi }, sol: manifest, chime: manifest, chimebox: manifest
 let busy = false
 
 const getJSON = async (u) => (await fetch(u, { cache: 'no-store' })).json()
@@ -48,6 +50,7 @@ async function loadManifests() {
   } catch {}
   try { manifests.sol = await getJSON(BOARDS.sol.base + 'manifest.json') } catch {}
   try { manifests.chime = await getJSON(BOARDS.chime.base + 'manifest.json') } catch {}
+  try { manifests.chimebox = await getJSON(BOARDS.chimebox.base + 'manifest.json') } catch {}
   render(true)
 }
 
@@ -58,12 +61,13 @@ function render(hint = false) {
   const m = board === 'cam' ? manifests.cam?.qspi : manifests[board]
   $('fw').textContent = m ? `build ${m.version}` : 'files missing'
   flashBtn.disabled = !m || busy
-  flashBtn.textContent = { arm: 'Flash the arm', cam: 'Flash the camera', sol: 'Flash the solenoid', chime: 'Flash the chimes' }[board]
+  flashBtn.textContent = { arm: 'Flash the arm', cam: 'Flash the camera', sol: 'Flash the solenoid', chime: 'Flash the chimes', chimebox: 'Flash the chimes BOX' }[board]
   if (hint) status({
     arm: 'Plug the Waveshare board (round, with the speaker) into this phone.',
     cam: 'Plug the camera module into this phone by its own USB-C. Unplug it from the arm first.',
     sol: 'Plug the ESP32-S3 board into this phone. Two USB ports? Either works. Unplug the solenoid supply first.',
     chime: 'Plug the chimes ESP32-S3 into this phone. Two USB ports? Either works. Switch the 24 V coil supply off first.',
+    chimebox: 'Plug the ESP32-S3-BOX into this phone by its USB-C. Switch the 24 V coil supply off first.',
   }[board])
 }
 
@@ -160,6 +164,7 @@ async function flash() {
       cam: 'Camera done ✓ — plug it back onto the arm (5V, GND, SDA, SCL). If nothing happens, tap its reset.',
       sol: 'Solenoid done ✓ — join WiFi “Solenoid” (pw ragamuffin) → 192.168.4.1. MOSFET gate on GPIO 4 (change it there). BOOT button = strike.',
       chime: 'Chimes done ✓ — join WiFi “Chimes” (pw ragamuffin) → 192.168.4.1: drivers found, test tubes, hall WiFi, MQTT, Install latest. MIDI in on GPIO 18, I2C SDA 8 / SCL 9.',
+      chimebox: 'Chimes BOX done ✓ — the screen shows the 25 tubes and TAP. Join WiFi “Chimes” (pw ragamuffin) → 192.168.4.1 for the hall WiFi and the solenoid GPIO. Drivers on PMOD1 (SDA 41 / SCL 40), MIDI in on GPIO 44.',
     }[board], 'ok')
     document.body.classList.add('done')
   } catch (e) {
