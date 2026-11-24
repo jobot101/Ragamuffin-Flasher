@@ -59,10 +59,10 @@ footer{text-align:center;color:var(--dim);font-size:13px}
 Colour order: pick Test, then tap Red — if the stair shows green or blue, try the next order.
 mA per pixel = reel W/m ÷ volts ÷ pixels per metre × 1000 (WS2812B 5 V ≈ 60).</p>
 <p class="hint" id="saved"></p></div>
-<div class="card"><h2>Hall WiFi <small id="nets"></small></h2>
+<div class="card" id="wifi"><h2>Hall WiFi <small id="nets"></small></h2>
 <label>network <input id="ssid" list="aps"></label><datalist id="aps"></datalist>
 <label>password <input id="wpass" type="password"></label>
-<div class="row"><button id="clark">ClarkShop</button><button id="scan">Scan</button></div>
+<div class="row"><button id="hall">STARLINK</button><button id="clark">ClarkShop</button><button id="scan">Scan</button></div>
 <div class="row"><button id="join">Join</button><button id="forget">Forget</button></div></div>
 <div class="card"><h2>MQTT <small id="mq"></small></h2>
 <label>broker <input id="mhost" placeholder="blank = off"></label><label>port <input id="mport" type="number"></label>
@@ -75,7 +75,7 @@ mA per pixel = reel W/m ÷ volts ÷ pixels per metre × 1000 (WS2812B 5 V ≈ 60
 <input type="file" id="bin" accept=".bin"><div class="row"><button id="up">Upload file</button></div></div>
 <footer>Ragamuffin Studios, McCoysville, Pennsylvania</footer>
 <script>
-const LATEST=')HTML" LATEST_URL R"HTML(',HOME=')HTML" HOME_SSID R"HTML(';
+const LATEST=')HTML" LATEST_URL R"HTML(',HALL=')HTML" HALL_SSID R"HTML(',HOME=')HTML" HOME_SSID R"HTML(';
 const $=id=>document.getElementById(id),j2=r=>r.json(),go=u=>fetch(u).then(j2).then(show).catch(()=>{});
 const ORD=['GRB','RGB','BRG','RBG','GBR','BGR'];ORD.forEach((o,i)=>$('ord').add(new Option(o,i)));
 const CH=[['Warm','ff9329'],['Candle','ff6a10'],['White','ffd9b0'],['Day','ffffff'],['Red','c62b29'],['Yellow','fdcd09'],['Green','8dad3e'],['Blue','60b6e5'],['Show','0a2a8a'],['Purple','7a2cff'],['Pink','ff3c8a'],['Teal','00c0a0']];
@@ -89,7 +89,7 @@ function show(j){if(!j||j.err){$('st').textContent=j?j.err:'no reply';return}c=j
  $('st').innerHTML=`${j.test?'test · '+j.fx:'#'+j.c} · ${j.b} % · ${j.nA}${j.nB?' + '+j.nB:''} px · ${ORD[j.ord]} · about ${j.ma} mA`+(j.cap?` <span class="warn">· held at the ${j.lim} mA limit</span>`:'');
  $('nets').textContent=n.up?`on ${n.ssid} · ${n.ip} · hall-stairs.local`:n.ssid?`joining ${n.ssid}…${n.why?' ('+(WHY[n.why]||'reason '+n.why)+')':''}`:'not set, own WiFi only';
  $('mq').textContent=m.host?(m.up?'connected':'connecting…'):'off'}
-function fill(j){show(j);['nA','nB','ord','trim','fade','lim','pma'].forEach(k=>$(k).value=j[k]);$('ssid').value=(j.net&&j.net.ssid)||HOME;
+function fill(j){if(!(j.net&&j.net.up)&&!fill.done){const w=$('wifi');document.querySelector('.dash').after(w)}fill.done=1;show(j);['nA','nB','ord','trim','fade','lim','pma'].forEach(k=>$(k).value=j[k]);$('ssid').value=(j.net&&j.net.ssid)||HALL;
  $('mhost').value=j.mqtt.host;$('mport').value=j.mqtt.port;$('muser').value=j.mqtt.user}
 let tq=0,q={};const send=o=>{Object.assign(q,o);busy=Date.now();clearTimeout(tq);tq=setTimeout(()=>{const s=new URLSearchParams(q);q={};go('/set?'+s)},60)};
 const setC=h=>{$('col').value='#'+h;$('hex').textContent='#'+h;$('sw').style.background='#'+h;send({c:h})};
@@ -103,6 +103,7 @@ $('scfg').onclick=()=>{const s=new URLSearchParams();['nA','nB','ord','trim','fa
  $('saved').textContent=j.restart?'Saved. Restarting with the new pixel count…':'Saved ✓';if(j.restart)setTimeout(()=>location.reload(),6000);else fill(j)})};
 $('scan').onclick=()=>{$('scan').textContent='scanning…';fetch('/scan').then(j2).then(a=>{$('aps').innerHTML='';
  a.forEach(s=>$('aps').append(new Option(s)));$('scan').textContent=a.length+' found'}).catch(()=>$('scan').textContent='Scan')};
+$('hall').onclick=()=>{$('ssid').value=HALL;$('wpass').focus()};
 $('clark').onclick=()=>{$('ssid').value=HOME;$('wpass').focus()};
 $('join').onclick=()=>{if(!$('ssid').value)return;go('/wifi?'+new URLSearchParams({ssid:$('ssid').value,pass:$('wpass').value}))};
 $('forget').onclick=()=>{if(confirm('Forget the hall WiFi?'))go('/wifi?forget=1')};

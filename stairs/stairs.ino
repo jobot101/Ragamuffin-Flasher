@@ -34,7 +34,8 @@
 #define AP_SSID     "Stairs"
 #define AP_PASS     "ragamuffin"
 #define HOSTNAME    "hall-stairs"
-#define HOME_SSID   "ClarkShop"     // preset network; its password is typed once on the page (NVS), never in the repo
+#define HALL_SSID   "STARLINK"      // the hall network: page default + preset. Password typed once (page or USB serial), NVS only
+#define HOME_SSID   "ClarkShop"     // shop preset; never put a password in this public repo
 #define TOPIC_BASE  "ragamuffin/hall/stairs"
 #define PIN_A       4               // output 1 (Super Mini GPIO 4)
 #define PIN_B       5               // output 2 (Super Mini GPIO 5), 0 pixels = off

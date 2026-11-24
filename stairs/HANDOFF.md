@@ -10,6 +10,7 @@ Folder `stairs/`, firmware `stairs.ino`. Board button "Stair lights" on the flas
 ## Hardware (Nov 24 2026)
 - **ESP32-S3 Super Mini**, strip data on **GPIO 4**. A second run can go on **GPIO 5**: the hub sits at the landing and the flights run away from it.
 - **Strip:** addressable LED neon flex, "thousands of lights". Chip, voltage and W/m not confirmed yet. Also has a reel with a red/green/white JST-SM pigtail (red V+, green data, white GND by convention).
+- **Hall WiFi:** STARLINK (page default + preset). ClarkShop is the shop preset. Passwords only in NVS.
 - **Supply on the bench:** 5 V 5 A. The default supply limit (4200 mA) is for it.
 - Super Mini pins: 1–13, 43, 44 on the header; no 16/17. GPIO 48 is the onboard RGB LED.
 
