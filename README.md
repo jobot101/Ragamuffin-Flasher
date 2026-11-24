@@ -11,6 +11,7 @@ One-tap firmware installs for Ragamuffin Hall's ESP32-S3 boards, from a phone ov
 | 🔔 Solenoid | solenoid tester: any ESP32-S3 + one MOSFET module | `solenoid/` here |
 | 🎐 Hall chimes | the bell machine: any ESP32-S3 + DIN MIDI + 4 MCP23017 solenoid drivers | `chime/` here |
 | 🎐 Chimes BOX | the same bell machine on the ESP32-S3-BOX: its screen is the front panel (25 tubes, Mute, TAP) | `chime_box/` here |
+| 💡 Stair lights | the hall stair strip: ESP32-S3 Super Mini, data on GPIO 4 (+ GPIO 5), colour + brightness | `stairs/` here |
 
 ## Using it
 
@@ -26,6 +27,7 @@ After the first install, each board updates itself from its own page with **Inst
 |---|---|---|
 | Solenoid | "Solenoid" → 192.168.4.1 | solenoid.local |
 | Hall chimes / Chimes BOX | "Chimes" → 192.168.4.1 | hall-chimes.local |
+| Stair lights | "Stairs" → 192.168.4.1 | hall-stairs.local |
 
 Keep mobile data on, and open the page in Chrome (not the WiFi sign-in pop-up).
 
@@ -36,6 +38,7 @@ Every push to `main` builds only what changed. Each workflow publishes to its ow
 - `solenoid/**` → `.github/workflows/solenoid.yml` → `sol/`
 - `chime/**` → `.github/workflows/chime.yml` → `chime/`
 - `chime_box/**` → `.github/workflows/chimebox.yml` → `chimebox/`
+- `stairs/**` → `.github/workflows/stairs.yml` → `stairs/`
 - `flasher/**` → `.github/workflows/flasher.yml` → the page itself
 
 Firmware is compiled with arduino-cli and esp32 core 3.2.0 into a 4 MB image that runs on any S3. The page reads the arm and camera files from `https://jobot101.github.io/xarm/`.
