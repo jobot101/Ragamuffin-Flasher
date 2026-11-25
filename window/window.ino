@@ -63,9 +63,9 @@ const int NORD = 6;
 struct Look { uint8_t r, g, b; int bri; bool test; int mode; int spd; };
 Look look = {255, 147, 41, 40, true, 0, 50};
 // Modes (the everyday choices; Test is separate). Speed 50 = 1x.
-const int NMODES = 11;
+const int NMODES = 13;
 const char* MODEN[] = {"solid", "pulse + colour", "breathe", "spin", "ripple", "glass", "candle",
-                       "christmas", "candy cane", "snowfall", "twinkle"};
+                       "christmas", "candy cane", "snowfall", "twinkle", "ragamuffin", "ragamuffin turning"};
 bool modeUsesColour(int m) { return m == 0 || m == 2 || m == 4; }
 // NVS namespace stays "stairs" (this started as the stair lights) so a board moved over keeps its WiFi and strip settings   // fresh board: Test on at 40 % so a new strip shows everything straight away
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
@@ -220,6 +220,32 @@ void layV(const CRGB* v) {
 }
 void fillRing(int k, CRGB c) { fill_solid(tA + ringStart[k], ringLen[k], c); }
 
+// The Ragamuffin Hall logo (brand/BRAND.md) laid onto the real rings, angle 0 = each ring's first pixel.
+// Outer ring = red/blue dashes, next ring in = the 16 petals (yellow, green, blue, red x4, a dark gap between),
+// next in = the hub's five wedges (yellow, green, blue, red, blue), anything before that (the feed spoke) = warm white.
+const CRGB G_RED(0xc6, 0x2b, 0x29), G_YEL(0xfd, 0xcd, 0x09), G_BLU(0x60, 0xb6, 0xe5), G_GRN(0x8d, 0xad, 0x3e);
+CRGB logoAt(int part, uint8_t a) {
+  switch (part) {
+    case 0: return ((a * 24) >> 8) & 1 ? G_BLU : G_RED;                               // outer dashes
+    case 1: { static const CRGB P[] = {G_YEL, G_GRN, G_BLU, G_RED};                  // petals
+              if (((a * 16) & 255) < 20) return CRGB::Black; return P[((a * 16) >> 8) & 3]; }
+    case 2: { static const CRGB W[] = {G_YEL, G_GRN, G_BLU, G_RED, G_BLU};           // hub wedges
+              return W[min(4, (a * 5) >> 8)]; }
+    default: return CRGB(255, 190, 120);                                               // spoke / white parts
+  }
+}
+void renderLogo(uint32_t t, bool turning) {
+  for (int k = 0; k < nRings; k++) {
+    int fromOut = nRings - 1 - k;                    // 0 = outermost (last in the wiring)
+    int part = nRings == 1 ? 1 : min(fromOut, 3);
+    uint8_t off = !turning ? 0 : (part == 1 ? t / 120 : part == 0 ? -(t / 160) : t / 200);   // petals and dashes turn opposite ways
+    for (int j = 0; j < ringLen[k]; j++) {
+      int q = ringRev[k] ? ringLen[k] - 1 - j : j;
+      tA[ringStart[k] + j] = logoAt(part, (uint8_t)((q * 256) / ringLen[k] + off));
+    }
+  }
+}
+
 void renderMode(const Look& L, uint32_t ms) {
   static const CRGB GLASS[] = {CRGB(0xc6, 0x2b, 0x29), CRGB(0xfd, 0xcd, 0x09), CRGB(0x60, 0xb6, 0xe5), CRGB(0x8d, 0xad, 0x3e)};
   static CRGB v[256];
@@ -271,6 +297,8 @@ void renderMode(const Look& L, uint32_t ms) {
       for (int i = 0; i < cfg.nA; i++) tA[i] = blend(tA[i], CRGB(0, 10, 60), 6);
       for (int k = 0; k < 1 + cfg.nA / 120; k++) if (random8() < 30) tA[random16(cfg.nA)] = CRGB(200, 220, 255);
       break;
+    case 11: renderLogo(t, false); break;          // ragamuffin: the logo, still
+    case 12: renderLogo(t, true); break;           // ragamuffin turning
     case 10: {                                    // twinkle: warm fairy lights, each on its own slow shimmer
       for (int i = 0; i < cfg.nA; i++) {
         uint8_t n = inoise8(i * 300, t / 6);

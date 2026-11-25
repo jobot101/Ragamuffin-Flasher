@@ -76,7 +76,7 @@ mA per pixel = reel W/m ÷ volts ÷ pixels per metre × 1000 (WS2812B 5 V ≈ 60
 <label>broker <input id="mhost" placeholder="blank = off"></label><label>port <input id="mport" type="number"></label>
 <label>user <input id="muser"></label><label>password <input id="mpass" type="password" placeholder="unchanged"></label>
 <div class="row"><button id="msave">Save</button></div>
-<p class="hint">Send to <b>ragamuffin/hall/window/set</b>: <code>c=ff9329&amp;b=30</code> · <code>m=1&amp;s=40</code> (mode 0–10, speed 1–100) · <code>b=0</code> · <code>test=1</code>. State is on <b>…/state</b>.</p></div>
+<p class="hint">Send to <b>ragamuffin/hall/window/set</b>: <code>c=ff9329&amp;b=30</code> · <code>m=1&amp;s=40</code> (mode 0–12, speed 1–100) · <code>b=0</code> · <code>test=1</code>. State is on <b>…/state</b>.</p></div>
 <div class="card"><h2>Firmware <small id="fwv"></small></h2>
 <div class="row"><button id="latest">Install latest</button></div>
 <p class="hint">Needs mobile data on, page open in Chrome (not the WiFi sign-in pop-up).</p>
@@ -107,7 +107,7 @@ const setB=v=>{$('bri').value=v;$('bv').textContent=v+' %';send({b:v})};
 $('bri').oninput=()=>setB($('bri').value);
 document.querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>setB(b.dataset.b));
 $('test').onclick=()=>send({test:c.test?0:1});
-const MODES=[['Solid','■'],['Pulse + colour','◐'],['Breathe','○'],['Spin','◎'],['Ripple','≋'],['Glass','✦'],['Candle','♨'],['Christmas','🎄'],['Candy cane','🍬'],['Snowfall','❄'],['Twinkle','✧']];
+const MODES=[['Solid','■'],['Pulse + colour','◐'],['Breathe','○'],['Spin','◎'],['Ripple','≋'],['Glass','✦'],['Candle','♨'],['Christmas','🎄'],['Candy cane','🍬'],['Snowfall','❄'],['Twinkle','✧'],['Ragamuffin','✪'],['Ragamuffin turning','✺']];
 MODES.forEach(([n,g],i)=>{const b=document.createElement('button');b.dataset.m=i;b.innerHTML=`<i style="border:0;font-size:22px;line-height:26px">${g}</i>${n}`;b.onclick=()=>send({m:i});$('modes').append(b)});
 const sx=v=>(v/50).toFixed(v<50?2:1).replace(/\.?0+$/,'')+'×';
 $('spd').oninput=()=>{$('sv').textContent=sx($('spd').value);send({s:$('spd').value})};

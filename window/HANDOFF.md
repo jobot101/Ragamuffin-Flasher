@@ -35,3 +35,4 @@ The window run is: feed spoke, then three rings (inner, middle, outer). Page →
 
 ## Modes (Nov 25 2026)
 Page → Mode: solid, pulse + colour (~6 s breath, hue round the wheel in ~60 s), breathe (chosen colour), spin, ripple (ring to ring), glass (the window's four colours swapping), candle, christmas (red/green bands + white glints), candy cane, snowfall, twinkle. Speed slider, 50 = 1×. Picking a colour drops to solid unless the mode uses the colour (solid, breathe, ripple). MQTT `m=` `s=`.
+Ragamuffin / Ragamuffin turning: the logo on the rings — outermost ring = red/blue dashes, next in = 16 petals (yellow, green, blue, red ×4, dark gap), next in = hub wedges (yellow, green, blue, red, blue), the feed spoke = warm white. Needs the rings set. Angle 0 = each ring's first pixel.
