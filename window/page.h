@@ -48,6 +48,9 @@ footer{text-align:center;color:var(--dim);font-size:13px}
 <div id="st">…</div></div>
 <div class="card"><h2>Strip <small>set once per install</small></h2>
 <label>pixels on GPIO 4 <input type="number" id="nA" min="1" max="4000"></label>
+<label>rings <input id="rings" placeholder="e.g. 40, 150, 230r, 420"></label>
+<label>sync rings in Test <select id="sync"><option value="1">on</option><option value="0">off</option></select></label>
+<div class="row"><button id="show">Show rings (20 s)</button></div>
 <label>pixels on GPIO 5 <input type="number" id="nB" min="0" max="4000" placeholder="0 = off"></label>
 <label>colour order <select id="ord"></select></label>
 <label>GPIO 5 level % <input type="number" id="trim" min="1" max="100"></label>
@@ -55,7 +58,8 @@ footer{text-align:center;color:var(--dim);font-size:13px}
 <label>supply limit mA <input type="number" id="lim" min="0" max="200000" placeholder="0 = none"></label>
 <label>mA per pixel, full white <input type="number" id="pma" min="1" max="500"></label>
 <div class="row"><button id="scfg">Save</button></div>
-<p class="hint">Pixels = chips, not LEDs: WS2811 neon often has 3 LEDs per chip. Changing a pixel count restarts the board.
+<p class="hint">Rings = pixels per ring in wiring order (the feed spoke counts as one). Tap Show rings: each ring lights red / yellow / blue / green with a white pixel at its start — adjust until colours change exactly at the joints. Add r to a ring that runs the other way. Whatever is left over is one more ring.
+Pixels = chips, not LEDs: WS2811 neon often has 3 LEDs per chip. Changing a pixel count restarts the board.
 Colour order: pick Test, then tap Red — if the ring shows green or blue, try the next order.
 mA per pixel = reel W/m ÷ volts ÷ pixels per metre × 1000 (WS2812B 5 V ≈ 60).</p>
 <p class="hint" id="saved"></p></div>
@@ -89,7 +93,7 @@ function show(j){if(!j||j.err){$('st').textContent=j?j.err:'no reply';return}c=j
  $('st').innerHTML=`${j.test?'test · '+j.fx:'#'+j.c} · ${j.b} % · ${j.nA}${j.nB?' + '+j.nB:''} px · ${ORD[j.ord]} · about ${j.ma} mA`+(j.cap?` <span class="warn">· held at the ${j.lim} mA limit</span>`:'');
  $('nets').textContent=n.up?`on ${n.ssid} · ${n.ip} · hall-window.local`:n.ssid?`joining ${n.ssid}…${n.why?' ('+(WHY[n.why]||'reason '+n.why)+')':''}`:'not set, own WiFi only';
  $('mq').textContent=m.host?(m.up?'connected':'connecting…'):'off'}
-function fill(j){if(!(j.net&&j.net.up)&&!fill.done){const w=$('wifi');document.querySelector('.dash').after(w)}fill.done=1;show(j);['nA','nB','ord','trim','fade','lim','pma'].forEach(k=>$(k).value=j[k]);$('ssid').value=(j.net&&j.net.ssid)||HALL;
+function fill(j){if(!(j.net&&j.net.up)&&!fill.done){const w=$('wifi');document.querySelector('.dash').after(w)}fill.done=1;show(j);['nA','nB','ord','trim','fade','lim','pma','rings','sync'].forEach(k=>$(k).value=j[k]);$('ssid').value=(j.net&&j.net.ssid)||HALL;
  $('mhost').value=j.mqtt.host;$('mport').value=j.mqtt.port;$('muser').value=j.mqtt.user}
 let tq=0,q={};const send=o=>{Object.assign(q,o);busy=Date.now();clearTimeout(tq);tq=setTimeout(()=>{const s=new URLSearchParams(q);q={};go('/set?'+s)},60)};
 const setC=h=>{$('col').value='#'+h;$('hex').textContent='#'+h;$('sw').style.background='#'+h;send({c:h})};
@@ -98,7 +102,8 @@ const setB=v=>{$('bri').value=v;$('bv').textContent=v+' %';send({b:v})};
 $('bri').oninput=()=>setB($('bri').value);
 document.querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>setB(b.dataset.b));
 $('test').onclick=()=>send({test:c.test?0:1});
-$('scfg').onclick=()=>{const s=new URLSearchParams();['nA','nB','ord','trim','fade','lim','pma'].forEach(k=>s.set(k,$(k).value||0));
+$('show').onclick=()=>fetch('/cfg?'+new URLSearchParams({rings:$('rings').value,show:1})).then(j2).then(show);
+$('scfg').onclick=()=>{const s=new URLSearchParams();['nA','nB','ord','trim','fade','lim','pma'].forEach(k=>s.set(k,$(k).value||0));s.set('rings',$('rings').value);s.set('sync',$('sync').value);
  fetch('/cfg?'+s).then(j2).then(j=>{if(j.err){$('saved').textContent=j.err;return}
  $('saved').textContent=j.restart?'Saved. Restarting with the new pixel count…':'Saved ✓';if(j.restart)setTimeout(()=>location.reload(),6000);else fill(j)})};
 $('scan').onclick=()=>{$('scan').textContent='scanning…';fetch('/scan').then(j2).then(a=>{$('aps').innerHTML='';

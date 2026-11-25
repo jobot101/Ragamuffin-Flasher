@@ -29,3 +29,6 @@ AP "Window" (open, no password, owner's call Nov 24), `hall-window.local`. NVS n
 1. FastLED on core 3.2.0 driving GPIO 4 on the Super Mini; real colour order of the neon reel.
 2. Frame time with thousands of pixels (about 30 µs per pixel) while WiFi runs.
 3. Install latest + `/update` end to end; `hall-stairs.local` on Android.
+
+## Rings (Nov 25 2026)
+The window run is: feed spoke, then three rings (inner, middle, outer). Page → Strip → rings takes pixels per ring in wiring order (`r` = runs backwards); "Show rings" lights each in a glass colour with a white start pixel for 20 s. With sync on, Test draws one 256-step virtual ring and maps it onto every ring by angle, so all rings show the same colour at the same angle.

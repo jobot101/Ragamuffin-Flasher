@@ -29,7 +29,7 @@ GitHub Actions is the build machine. Ship a change by pushing to `main`, then re
   - FastLED on **GPIO 4** (+ **GPIO 5**, 0 px = off); pixel counts are NVS settings (a change restarts). Colour order is applied in software, so a new reel is a setting.
   - A supply limit in mA cuts brightness; LEDs run on core 1 (loop), WiFi/web/MQTT/updates on core 0 (`netTask`), LEDs hold still during an update.
   - Network like the solenoid: AP "Window" (open, no password — owner's call), STARLINK (hall) + ClarkShop presets, `hall-window.local`, MQTT `ragamuffin/hall/window/{set,state,status}`.
-  - **NVS namespace `stairs`** (kept from the stair-lights start, so moved boards keep settings): `nA nB ord lim pma trim fade r g b bri test ssid wpass mhost mport muser mpass`.
+  - **NVS namespace `stairs`** (kept from the stair-lights start, so moved boards keep settings): `nA nB ord lim pma trim fade rings sync r g b bri test ssid wpass mhost mport muser mpass`. Rings: lengths on GPIO 4 in wiring order (`r` = reversed); Test draws one virtual ring (256) and lays it on every ring by angle when `sync` is on.
 - **`chime_box/`:** the hall chimes' control firmware on the original **ESP32-S3-BOX** (TT21100 touch, ILI9342C, ES8311 speaker) and its dock. Modular since 2026-11-08:
   - **Read first:**
     - `chimes.h` is the shared contract.

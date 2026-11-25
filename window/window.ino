@@ -50,7 +50,27 @@ struct Cfg {
   int pixMA = 60;                   // one pixel at full white (WS2812B 5 V = 60)
   int trimB = 100;                  // output 2 level %
   int fadeMs = 600;
+  String rings = "";                // ring lengths on GPIO 4 in wiring order, e.g. "40, 150r, 230, 420" (r = runs backwards)
+  bool sync = true;                 // Test: every ring shows the same pattern at the same angle
 } cfg;
+// rings parsed from cfg.rings (anything left over after the listed rings counts as one more ring)
+const int MAX_RINGS = 8;
+int nRings = 0, ringStart[MAX_RINGS + 1], ringLen[MAX_RINGS + 1]; bool ringRev[MAX_RINGS + 1];
+volatile uint32_t previewUntil = 0;   // "Show rings": each ring in a glass colour for a while
+void parseRings() {
+  nRings = 0; int at = 0; String s = cfg.rings + ",";
+  int from = 0;
+  for (int i = 0; i < (int)s.length() && nRings < MAX_RINGS; i++) {
+    if (s[i] != ',' && s[i] != ' ' && s[i] != ';') continue;
+    String t = s.substring(from, i); t.trim(); from = i + 1;
+    if (!t.length()) continue;
+    int n = t.toInt(); if (n <= 0) continue;
+    bool rev = t.endsWith("r") || t.endsWith("R");
+    n = min(n, cfg.nA - at); if (n <= 0) break;
+    ringStart[nRings] = at; ringLen[nRings] = n; ringRev[nRings] = rev; nRings++; at += n;
+  }
+  if (at < cfg.nA) { ringStart[nRings] = at; ringLen[nRings] = cfg.nA - at; ringRev[nRings] = false; nRings++; }
+}
 const char* ORDERS[] = {"GRB", "RGB", "BRG", "RBG", "GBR", "BGR"};
 const int NORD = 6;
 
@@ -114,6 +134,7 @@ void loadAll() {
   cfg.nA = prefs.getInt("nA", cfg.nA); cfg.nB = prefs.getInt("nB", cfg.nB); cfg.ord = prefs.getInt("ord", cfg.ord);
   cfg.limMA = prefs.getInt("lim", cfg.limMA); cfg.pixMA = prefs.getInt("pma", cfg.pixMA);
   cfg.trimB = prefs.getInt("trim", cfg.trimB); cfg.fadeMs = prefs.getInt("fade", cfg.fadeMs);
+  cfg.rings = prefs.getString("rings", ""); cfg.sync = prefs.getBool("sync", true);
   look.r = prefs.getUChar("r", look.r); look.g = prefs.getUChar("g", look.g); look.b = prefs.getUChar("b", look.b);
   look.bri = prefs.getInt("bri", look.bri); look.test = prefs.getBool("test", look.test);
   staSsid = prefs.getString("ssid", ""); staPass = prefs.getString("wpass", "");
@@ -122,10 +143,12 @@ void loadAll() {
   prefs.end();
   cfg.nA = constrain(cfg.nA, 1, MAX_PIX); cfg.nB = constrain(cfg.nB, 0, MAX_PIX);
   if (cfg.ord < 0 || cfg.ord >= NORD) cfg.ord = 0;
+  parseRings();
 }
 void saveCfg() {
   FlashHold fh; Preferences prefs; prefs.begin("stairs", false);
   prefs.putInt("nA", cfg.nA); prefs.putInt("nB", cfg.nB); prefs.putInt("ord", cfg.ord);
+  prefs.putString("rings", cfg.rings); prefs.putBool("sync", cfg.sync);
   prefs.putInt("lim", cfg.limMA); prefs.putInt("pma", cfg.pixMA); prefs.putInt("trim", cfg.trimB); prefs.putInt("fade", cfg.fadeMs);
   prefs.end();
 }
@@ -187,12 +210,33 @@ void ledLoop() {
   Look L = getLook();
   if (lookVer != seen) { seen = lookVer; fr = cr; fg = cg; fb = cb; fbri = cbri; fadeT0 = now; }
 
+  if ((int32_t)(previewUntil - now) > 0) {   // Show rings: glass colours per ring, a white pixel at each ring's start
+    static const CRGB GLASS[] = {CRGB(0xc6, 0x2b, 0x29), CRGB(0xfd, 0xcd, 0x09), CRGB(0x60, 0xb6, 0xe5), CRGB(0x8d, 0xad, 0x3e)};
+    uint32_t sum = 0;
+    for (int k = 0; k < nRings; k++)
+      for (int j = 0; j < ringLen[k]; j++) {
+        CRGB c = j == (ringRev[k] ? ringLen[k] - 1 : 0) ? CRGB::White : GLASS[k % 4];
+        ledA[ringStart[k] + j] = wire(c); sum += c.r + c.g + c.b;
+      }
+    showFrame(L.bri < 20 ? 20 : L.bri, sum); wasTest = true; delay(30);
+    return;
+  }
   if (L.test) {
     if (!wasTest) { fill_solid(tA, cfg.nA, CRGB::Black); if (cfg.nB) fill_solid(tB, cfg.nB, CRGB::Black); }
     wasTest = true;
     EVERY_N_MILLISECONDS(20) { hue++; }
     EVERY_N_SECONDS(8) { fx = (fx + 1) % NFX; Serial.printf("test: %s\n", FXN[fx]); }
-    effect(tA, cfg.nA); effect(tB, cfg.nB);
+    if (cfg.sync && nRings > 1) {
+      // one pattern drawn on a virtual ring, then laid onto every real ring by angle (fraction of its length)
+      static CRGB v[256]; const int VN = 256;
+      effect(v, VN);
+      for (int k = 0; k < nRings; k++)
+        for (int j = 0; j < ringLen[k]; j++) {
+          int q = ringRev[k] ? ringLen[k] - 1 - j : j;
+          tA[ringStart[k] + j] = v[(q * VN) / ringLen[k]];
+        }
+    } else effect(tA, cfg.nA);
+    effect(tB, cfg.nB);
     uint32_t sum = 0;
     for (int i = 0; i < cfg.nA; i++) { ledA[i] = wire(tA[i]); sum += tA[i].r + tA[i].g + tA[i].b; }
     for (int i = 0; i < cfg.nB; i++) { CRGB c = tB[i]; c.nscale8_video(cfg.trimB * 255 / 100); ledB[i] = wire(c); sum += c.r + c.g + c.b; }
@@ -223,13 +267,13 @@ void ledLoop() {
 String stateJson() {
   Look L = getLook();
   bool up = WiFi.status() == WL_CONNECTED;
-  char b[900];
+  char b[1100];
   snprintf(b, sizeof b,
     "{\"fw\":\"%s\",\"c\":\"%02x%02x%02x\",\"b\":%d,\"test\":%d,\"fx\":\"%s\",\"nA\":%d,\"nB\":%d,\"ord\":%d,\"trim\":%d,\"fade\":%d,"
-    "\"lim\":%d,\"pma\":%d,\"ma\":%d,\"cap\":%d,"
+    "\"lim\":%d,\"pma\":%d,\"ma\":%d,\"cap\":%d,\"rings\":\"%s\",\"sync\":%d,\"nr\":%d,"
     "\"net\":{\"ssid\":\"%s\",\"up\":%d,\"ip\":\"%s\",\"why\":%d},\"mqtt\":{\"host\":\"%s\",\"port\":%u,\"user\":\"%s\",\"up\":%d}}",
     FW_VERSION, L.r, L.g, L.b, L.bri, L.test, FXN[fx], cfg.nA, cfg.nB, cfg.ord, cfg.trimB, cfg.fadeMs,
-    cfg.limMA, cfg.pixMA, (int)estMA, (int)capped,
+    cfg.limMA, cfg.pixMA, (int)estMA, (int)capped, esc(cfg.rings).c_str(), (int)cfg.sync, nRings,
     esc(staSsid).c_str(), up, up ? WiFi.localIP().toString().c_str() : "", up ? 0 : staWhy,
     esc(mqttHost).c_str(), mqttPort, esc(mqttUser).c_str(), (int)mqtt.connected());
   return b;
@@ -262,6 +306,10 @@ void setupWeb() {
     cfg.ord = constrain(I("ord", cfg.ord), 0, NORD - 1); cfg.trimB = constrain(I("trim", cfg.trimB), 1, 100);
     cfg.fadeMs = constrain(I("fade", cfg.fadeMs), 0, 5000); cfg.limMA = constrain(I("lim", cfg.limMA), 0, 200000);
     cfg.pixMA = constrain(I("pma", cfg.pixMA), 1, 500);
+    if (server.hasArg("rings")) { cfg.rings = server.arg("rings"); cfg.rings.trim(); }
+    if (server.hasArg("sync")) cfg.sync = server.arg("sync").toInt();
+    parseRings();
+    if (server.hasArg("show")) previewUntil = millis() + 20000;
     saveCfg();
     portENTER_CRITICAL(&mux); lookVer++; portEXIT_CRITICAL(&mux);   // redraw with the new order / level
     if (cfg.nA != oA || cfg.nB != oB) {
