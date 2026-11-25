@@ -32,3 +32,6 @@ AP "Window" (open, no password, owner's call Nov 24), `hall-window.local`. NVS n
 
 ## Rings (Nov 25 2026)
 The window run is: feed spoke, then three rings (inner, middle, outer). Page → Strip → rings takes pixels per ring in wiring order (`r` = runs backwards); "Show rings" lights each in a glass colour with a white start pixel for 20 s. With sync on, Test draws one 256-step virtual ring and maps it onto every ring by angle, so all rings show the same colour at the same angle.
+
+## Modes (Nov 25 2026)
+Page → Mode: solid, pulse + colour (~6 s breath, hue round the wheel in ~60 s), breathe (chosen colour), spin, ripple (ring to ring), glass (the window's four colours swapping), candle, christmas (red/green bands + white glints), candy cane, snowfall, twinkle. Speed slider, 50 = 1×. Picking a colour drops to solid unless the mode uses the colour (solid, breathe, ripple). MQTT `m=` `s=`.

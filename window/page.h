@@ -44,6 +44,10 @@ footer{text-align:center;color:var(--dim);font-size:13px}
 <div class="bri"><span>Brightness</span><b id="bv">40 %</b></div>
 <input type="range" id="bri" min="0" max="100" value="40">
 <div class="row"><button data-b="0">Off</button><button data-b="10">10 %</button><button data-b="30">30 %</button><button data-b="60">60 %</button><button data-b="100">100 %</button></div>
+<h2 style="margin-top:14px">Mode</h2>
+<div class="chips" id="modes"></div>
+<div class="bri"><span>Speed</span><b id="sv">1×</b></div>
+<input type="range" id="spd" min="1" max="100" value="50">
 <div class="row"><button id="test" class="test">Test: every colour</button></div>
 <div id="st">…</div></div>
 <div class="card"><h2>Strip <small>set once per install</small></h2>
@@ -72,7 +76,7 @@ mA per pixel = reel W/m ÷ volts ÷ pixels per metre × 1000 (WS2812B 5 V ≈ 60
 <label>broker <input id="mhost" placeholder="blank = off"></label><label>port <input id="mport" type="number"></label>
 <label>user <input id="muser"></label><label>password <input id="mpass" type="password" placeholder="unchanged"></label>
 <div class="row"><button id="msave">Save</button></div>
-<p class="hint">Send to <b>ragamuffin/hall/window/set</b>: <code>c=ff9329&amp;b=30</code> · <code>b=0</code> · <code>test=1</code>. State is on <b>…/state</b>.</p></div>
+<p class="hint">Send to <b>ragamuffin/hall/window/set</b>: <code>c=ff9329&amp;b=30</code> · <code>m=1&amp;s=40</code> (mode 0–10, speed 1–100) · <code>b=0</code> · <code>test=1</code>. State is on <b>…/state</b>.</p></div>
 <div class="card"><h2>Firmware <small id="fwv"></small></h2>
 <div class="row"><button id="latest">Install latest</button></div>
 <p class="hint">Needs mobile data on, page open in Chrome (not the WiFi sign-in pop-up).</p>
@@ -88,9 +92,10 @@ const WHY={2:'auth expired',15:'wrong password',201:'not found (2.4 GHz only)',2
 let c={},busy=0;
 function show(j){if(!j||j.err){$('st').textContent=j?j.err:'no reply';return}c=j;const n=j.net||{},m=j.mqtt||{};
  $('fw').textContent='build '+j.fw;$('fwv').textContent='running '+j.fw;
- if(!busy){$('col').value='#'+j.c;$('hex').textContent='#'+j.c;$('sw').style.background='#'+j.c;$('bri').value=j.b;$('bv').textContent=j.b+' %'}
+ document.querySelectorAll('#modes button').forEach(b=>b.classList.toggle('on',!j.test&&+b.dataset.m===j.m));
+ if(!busy){$('spd').value=j.s;$('sv').textContent=sx(j.s);$('col').value='#'+j.c;$('hex').textContent='#'+j.c;$('sw').style.background='#'+j.c;$('bri').value=j.b;$('bv').textContent=j.b+' %'}
  $('test').classList.toggle('on',!!j.test);$('test').textContent=j.test?'Test running — tap a colour to stop':'Test: every colour';
- $('st').innerHTML=`${j.test?'test · '+j.fx:'#'+j.c} · ${j.b} % · ${j.nA}${j.nB?' + '+j.nB:''} px · ${ORD[j.ord]} · about ${j.ma} mA`+(j.cap?` <span class="warn">· held at the ${j.lim} mA limit</span>`:'');
+ $('st').innerHTML=`${j.test?'test · '+j.fx:(MODES[j.m]||['?'])[0].toLowerCase()+' · #'+j.c} · ${j.b} % · ${j.nA}${j.nB?' + '+j.nB:''} px · ${ORD[j.ord]} · about ${j.ma} mA`+(j.cap?` <span class="warn">· held at the ${j.lim} mA limit</span>`:'');
  $('nets').textContent=n.up?`on ${n.ssid} · ${n.ip} · hall-window.local`:n.ssid?`joining ${n.ssid}…${n.why?' ('+(WHY[n.why]||'reason '+n.why)+')':''}`:'not set, own WiFi only';
  $('mq').textContent=m.host?(m.up?'connected':'connecting…'):'off'}
 function fill(j){if(!(j.net&&j.net.up)&&!fill.done){const w=$('wifi');document.querySelector('.dash').after(w)}fill.done=1;show(j);['nA','nB','ord','trim','fade','lim','pma','rings','sync'].forEach(k=>$(k).value=j[k]);$('ssid').value=(j.net&&j.net.ssid)||HALL;
@@ -102,6 +107,10 @@ const setB=v=>{$('bri').value=v;$('bv').textContent=v+' %';send({b:v})};
 $('bri').oninput=()=>setB($('bri').value);
 document.querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>setB(b.dataset.b));
 $('test').onclick=()=>send({test:c.test?0:1});
+const MODES=[['Solid','■'],['Pulse + colour','◐'],['Breathe','○'],['Spin','◎'],['Ripple','≋'],['Glass','✦'],['Candle','♨'],['Christmas','🎄'],['Candy cane','🍬'],['Snowfall','❄'],['Twinkle','✧']];
+MODES.forEach(([n,g],i)=>{const b=document.createElement('button');b.dataset.m=i;b.innerHTML=`<i style="border:0;font-size:22px;line-height:26px">${g}</i>${n}`;b.onclick=()=>send({m:i});$('modes').append(b)});
+const sx=v=>(v/50).toFixed(v<50?2:1).replace(/\.?0+$/,'')+'×';
+$('spd').oninput=()=>{$('sv').textContent=sx($('spd').value);send({s:$('spd').value})};
 $('show').onclick=()=>fetch('/cfg?'+new URLSearchParams({rings:$('rings').value,show:1})).then(j2).then(show);
 $('scfg').onclick=()=>{const s=new URLSearchParams();['nA','nB','ord','trim','fade','lim','pma'].forEach(k=>s.set(k,$(k).value||0));s.set('rings',$('rings').value);s.set('sync',$('sync').value);
  fetch('/cfg?'+s).then(j2).then(j=>{if(j.err){$('saved').textContent=j.err;return}

@@ -60,8 +60,13 @@ volatile uint32_t previewUntil = 0;   // "Show rings": each ring in a glass colo
 const char* ORDERS[] = {"GRB", "RGB", "BRG", "RBG", "GBR", "BGR"};
 const int NORD = 6;
 
-struct Look { uint8_t r, g, b; int bri; bool test; };
-Look look = {255, 147, 41, 40, true};
+struct Look { uint8_t r, g, b; int bri; bool test; int mode; int spd; };
+Look look = {255, 147, 41, 40, true, 0, 50};
+// Modes (the everyday choices; Test is separate). Speed 50 = 1x.
+const int NMODES = 11;
+const char* MODEN[] = {"solid", "pulse + colour", "breathe", "spin", "ripple", "glass", "candle",
+                       "christmas", "candy cane", "snowfall", "twinkle"};
+bool modeUsesColour(int m) { return m == 0 || m == 2 || m == 4; }
 // NVS namespace stays "stairs" (this started as the stair lights) so a board moved over keeps its WiFi and strip settings   // fresh board: Test on at 40 % so a new strip shows everything straight away
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 volatile uint32_t lookVer = 1;
@@ -107,9 +112,11 @@ bool parseHex(String h, uint8_t& r, uint8_t& g, uint8_t& b) {
 // apply "c=rrggbb&b=30&test=0" (page query, MQTT payload or serial)
 bool applyLookArgs(std::function<bool(const char*)> has, std::function<String(const char*)> get) {
   Look l = getLook(); bool any = false;
-  if (has("c")) { uint8_t r, g, b; if (!parseHex(get("c"), r, g, b)) return false; l.r = r; l.g = g; l.b = b; l.test = false; any = true; }
+  if (has("c")) { uint8_t r, g, b; if (!parseHex(get("c"), r, g, b)) return false; l.r = r; l.g = g; l.b = b; l.test = false; if (!modeUsesColour(l.mode)) l.mode = 0; any = true; }
   if (has("b")) { l.bri = constrain(get("b").toInt(), 0, 100); any = true; }
   if (has("test")) { l.test = get("test").toInt(); any = true; }
+  if (has("m")) { l.mode = constrain(get("m").toInt(), 0, NMODES - 1); l.test = false; any = true; }
+  if (has("s")) { l.spd = constrain(get("s").toInt(), 1, 100); any = true; }
   if (any) setLook(l);
   return true;
 }
@@ -138,6 +145,7 @@ void loadAll() {
   cfg.rings = prefs.getString("rings", ""); cfg.sync = prefs.getBool("sync", true);
   look.r = prefs.getUChar("r", look.r); look.g = prefs.getUChar("g", look.g); look.b = prefs.getUChar("b", look.b);
   look.bri = prefs.getInt("bri", look.bri); look.test = prefs.getBool("test", look.test);
+  look.mode = constrain((int)prefs.getInt("mode", 0), 0, NMODES - 1); look.spd = constrain((int)prefs.getInt("spd", 50), 1, 100);
   staSsid = prefs.getString("ssid", ""); staPass = prefs.getString("wpass", "");
   mqttHost = prefs.getString("mhost", ""); mqttPort = prefs.getUShort("mport", 1883);
   mqttUser = prefs.getString("muser", ""); mqttPass = prefs.getString("mpass", "");
@@ -156,7 +164,7 @@ void saveCfg() {
 void saveLook() {
   Look l = getLook();
   FlashHold fh; Preferences prefs; prefs.begin("stairs", false);
-  prefs.putUChar("r", l.r); prefs.putUChar("g", l.g); prefs.putUChar("b", l.b); prefs.putInt("bri", l.bri); prefs.putBool("test", l.test);
+  prefs.putUChar("r", l.r); prefs.putUChar("g", l.g); prefs.putUChar("b", l.b); prefs.putInt("bri", l.bri); prefs.putBool("test", l.test); prefs.putInt("mode", l.mode); prefs.putInt("spd", l.spd);
   prefs.end();
 }
 
@@ -202,6 +210,78 @@ void showFrame(float briPct, uint32_t sumRGB) {   // sumRGB: sum of r+g+b over e
   ledBusy = false;
 }
 
+// lay a 256-step virtual ring onto every ring by angle (or the whole run when there are no rings set)
+void layV(const CRGB* v) {
+  for (int k = 0; k < nRings; k++)
+    for (int j = 0; j < ringLen[k]; j++) {
+      int q = ringRev[k] ? ringLen[k] - 1 - j : j;
+      tA[ringStart[k] + j] = v[(q * 256) / ringLen[k]];
+    }
+}
+void fillRing(int k, CRGB c) { fill_solid(tA + ringStart[k], ringLen[k], c); }
+
+void renderMode(const Look& L, uint32_t ms) {
+  static const CRGB GLASS[] = {CRGB(0xc6, 0x2b, 0x29), CRGB(0xfd, 0xcd, 0x09), CRGB(0x60, 0xb6, 0xe5), CRGB(0x8d, 0xad, 0x3e)};
+  static CRGB v[256];
+  static uint32_t tAcc = 0, last = 0;            // speed-scaled clock, so moving the speed slider never jumps
+  tAcc += (uint32_t)((ms - last) * (L.spd / 50.0f)); last = ms;
+  uint32_t t = tAcc;
+  CRGB base(L.r, L.g, L.b);
+  switch (L.mode) {
+    case 1: {                                     // pulse + colour: ~6 s breath, hue walks the wheel in ~60 s
+      uint8_t b = 30 + scale8(sin8(t / 24), 225);
+      fill_solid(tA, cfg.nA, CHSV(t / 235, 230, b));
+    } break;
+    case 2: {                                     // breathe: the chosen colour, ~6 s
+      CRGB c = base; c.nscale8_video(30 + scale8(sin8(t / 24), 225)); fill_solid(tA, cfg.nA, c);
+    } break;
+    case 3:                                       // spin: a rainbow turning around every ring together, ~10 s a lap
+      for (int i = 0; i < 256; i++) v[i] = CHSV(i + t / 40, 255, 255);
+      layV(v); break;
+    case 4: {                                     // ripple: a swell of the chosen colour travels ring to ring
+      CHSV hb = rgb2hsv_approximate(base);
+      if (nRings > 1) for (int k = 0; k < nRings; k++) {
+        CHSV h = hb; h.h += k * 10; CRGB c = h; c.nscale8_video(20 + scale8(sin8(t / 10 - k * 48), 235)); fillRing(k, c);
+      } else for (int i = 0; i < cfg.nA; i++) {
+        CRGB c = base; c.nscale8_video(20 + scale8(sin8(t / 10 - i * 512 / cfg.nA), 235)); tA[i] = c;
+      }
+    } break;
+    case 5: {                                     // glass: the window's red / yellow / blue / green, swapping every ~6 s
+      uint32_t step = t / 6000, f = t % 6000;
+      uint8_t amt = f < 4500 ? 0 : (f - 4500) * 255 / 1500;
+      if (nRings > 1) for (int k = 0; k < nRings; k++)
+        fillRing(k, blend(GLASS[(k + step) % 4], GLASS[(k + step + 1) % 4], amt));
+      else { for (int i = 0; i < 256; i++) v[i] = blend(GLASS[(i / 64 + step) % 4], GLASS[(i / 64 + step + 1) % 4], amt); layV(v); }
+    } break;
+    case 6:                                       // candle: warm, uneven flicker
+      for (int i = 0; i < cfg.nA; i++) {
+        uint8_t n = inoise8(i * 40, t / 3);
+        CRGB c(255, 100 + scale8(n, 50), 18); c.nscale8_video(110 + scale8(n, 145)); tA[i] = c;
+      } break;
+    case 7: {                                     // christmas: red and green bands drifting round, white glints
+      const CRGB RED(200, 0, 0), GRN(0, 150, 20);
+      for (int i = 0; i < 256; i++) { uint8_t p = i * 4 + t / 60; v[i] = blend(RED, GRN, sin8(p)); }
+      layV(v);
+      for (int k = 0; k < 1 + cfg.nA / 80; k++) if (random8() < 40) tA[random16(cfg.nA)] = CRGB(255, 240, 200);
+    } break;
+    case 8:                                       // candy cane: red and white stripes spinning
+      for (int i = 0; i < 256; i++) v[i] = ((i + t / 30) / 16) % 2 ? CRGB(220, 0, 0) : CRGB(255, 230, 210);
+      layV(v); break;
+    case 9:                                       // snowfall: deep winter blue, flakes that glow and melt away
+      for (int i = 0; i < cfg.nA; i++) tA[i] = blend(tA[i], CRGB(0, 10, 60), 6);
+      for (int k = 0; k < 1 + cfg.nA / 120; k++) if (random8() < 30) tA[random16(cfg.nA)] = CRGB(200, 220, 255);
+      break;
+    case 10: {                                    // twinkle: warm fairy lights, each on its own slow shimmer
+      for (int i = 0; i < cfg.nA; i++) {
+        uint8_t n = inoise8(i * 300, t / 6);
+        uint8_t b = n < 90 ? 25 : scale8(n - 90, 255) * 1 + 25;
+        CRGB c(255, 170, 70); c.nscale8_video(b); tA[i] = c;
+      }
+    } break;
+  }
+  for (int i = 0; i < cfg.nB; i++) tB[i] = tA[i % cfg.nA];   // GPIO 5 follows the same pattern
+}
+
 void ledLoop() {
   static uint32_t seen = 0, lastShow = 0, fadeT0 = 0;
   static float cr = 0, cg = 0, cb = 0, cbri = 0, fr, fg, fb, fbri;   // current + fade start
@@ -222,6 +302,15 @@ void ledLoop() {
     showFrame(L.bri < 20 ? 20 : L.bri, sum); wasTest = true; delay(30);
     return;
   }
+  if (!L.test && L.mode > 0) {                // an animated mode
+    renderMode(L, now);
+    uint32_t sum = 0;
+    for (int i = 0; i < cfg.nA; i++) { ledA[i] = wire(tA[i]); sum += tA[i].r + tA[i].g + tA[i].b; }
+    for (int i = 0; i < cfg.nB; i++) { CRGB c = tB[i]; c.nscale8_video(cfg.trimB * 255 / 100); ledB[i] = wire(c); sum += c.r + c.g + c.b; }
+    showFrame(L.bri, sum); wasTest = true; delay(8);
+    cr = cg = cb = 0; cbri = 0;
+    return;
+  }
   if (L.test) {
     if (!wasTest) { fill_solid(tA, cfg.nA, CRGB::Black); if (cfg.nB) fill_solid(tB, cfg.nB, CRGB::Black); }
     wasTest = true;
@@ -229,13 +318,8 @@ void ledLoop() {
     EVERY_N_SECONDS(8) { fx = (fx + 1) % NFX; Serial.printf("test: %s\n", FXN[fx]); }
     if (cfg.sync && nRings > 1) {
       // one pattern drawn on a virtual ring, then laid onto every real ring by angle (fraction of its length)
-      static CRGB v[256]; const int VN = 256;
-      effect(v, VN);
-      for (int k = 0; k < nRings; k++)
-        for (int j = 0; j < ringLen[k]; j++) {
-          int q = ringRev[k] ? ringLen[k] - 1 - j : j;
-          tA[ringStart[k] + j] = v[(q * VN) / ringLen[k]];
-        }
+      static CRGB v[256];
+      effect(v, 256); layV(v);
     } else effect(tA, cfg.nA);
     effect(tB, cfg.nB);
     uint32_t sum = 0;
@@ -270,10 +354,10 @@ String stateJson() {
   bool up = WiFi.status() == WL_CONNECTED;
   char b[1100];
   snprintf(b, sizeof b,
-    "{\"fw\":\"%s\",\"c\":\"%02x%02x%02x\",\"b\":%d,\"test\":%d,\"fx\":\"%s\",\"nA\":%d,\"nB\":%d,\"ord\":%d,\"trim\":%d,\"fade\":%d,"
+    "{\"fw\":\"%s\",\"c\":\"%02x%02x%02x\",\"b\":%d,\"test\":%d,\"fx\":\"%s\",\"m\":%d,\"s\":%d,\"nA\":%d,\"nB\":%d,\"ord\":%d,\"trim\":%d,\"fade\":%d,"
     "\"lim\":%d,\"pma\":%d,\"ma\":%d,\"cap\":%d,\"rings\":\"%s\",\"sync\":%d,\"nr\":%d,"
     "\"net\":{\"ssid\":\"%s\",\"up\":%d,\"ip\":\"%s\",\"why\":%d},\"mqtt\":{\"host\":\"%s\",\"port\":%u,\"user\":\"%s\",\"up\":%d}}",
-    FW_VERSION, L.r, L.g, L.b, L.bri, L.test, FXN[fx], cfg.nA, cfg.nB, cfg.ord, cfg.trimB, cfg.fadeMs,
+    FW_VERSION, L.r, L.g, L.b, L.bri, L.test, FXN[fx], L.mode, L.spd, cfg.nA, cfg.nB, cfg.ord, cfg.trimB, cfg.fadeMs,
     cfg.limMA, cfg.pixMA, (int)estMA, (int)capped, esc(cfg.rings).c_str(), (int)cfg.sync, nRings,
     esc(staSsid).c_str(), up, up ? WiFi.localIP().toString().c_str() : "", up ? 0 : staWhy,
     esc(mqttHost).c_str(), mqttPort, esc(mqttUser).c_str(), (int)mqtt.connected());
@@ -440,8 +524,8 @@ void netTask(void*) {
       if (pubState && ms - lastPub > 300) {
         pubState = false; lastPub = ms;
         snprintf(topic, sizeof topic, "%s/state", TOPIC_BASE);
-        Look L = getLook(); char b[96];
-        snprintf(b, sizeof b, "{\"c\":\"%02x%02x%02x\",\"b\":%d,\"test\":%d,\"fw\":\"%s\"}", L.r, L.g, L.b, L.bri, L.test, FW_VERSION);
+        Look L = getLook(); char b[160];
+        snprintf(b, sizeof b, "{\"c\":\"%02x%02x%02x\",\"b\":%d,\"test\":%d,\"m\":\"%s\",\"s\":%d,\"fw\":\"%s\"}", L.r, L.g, L.b, L.bri, L.test, MODEN[L.mode], L.spd, FW_VERSION);
         mqtt.publish(topic, b, true);
       }
     }
