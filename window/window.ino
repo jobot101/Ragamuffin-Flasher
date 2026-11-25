@@ -1,8 +1,8 @@
-// Hall stair lights: any ESP32-S3 (DevKit or Super Mini), addressable strip on GPIO 4, optional second run on GPIO 5.
+// Hall window lights (the rose window ring): any ESP32-S3 (DevKit or Super Mini), addressable strip on GPIO 4, optional second run on GPIO 5.
 // USB: commands and the boot line work on the native USB port and on a DevKit's UART port (Serial0).
-// Flashed from the Ragamuffin Flasher (board "Stair lights"). Then join WiFi "Stairs" (pw ragamuffin) -> 192.168.4.1
+// Flashed from the Ragamuffin Flasher (board "Hall window"). Then join WiFi "Window" (pw ragamuffin) -> 192.168.4.1
 //
-// What it does: the whole stair shows one colour at one brightness. That's the only control, on purpose.
+// What it does: the whole ring shows one colour at one brightness. That's the only control, on purpose.
 //               A Test button runs every colour and the busy effects so a new strip can be checked end to end.
 // Strip: WS2812B / WS2811 / SK6812-RGB style (one data wire), including addressable neon flex, 5, 12 or 24 V.
 //        Colour order is a setting (GRB for most WS2812B, RGB/BRG for many WS2811 and neon), so no rebuild for a new reel.
@@ -10,10 +10,10 @@
 // Power: a supply limit in mA (default 4200 = a 5 V 5 A supply with margin). Brightness is cut so the estimate
 //        never goes over it. Set "mA per pixel at full white" from the reel's W/m (W/m / V / pixels per m * 1000).
 // Network: always its own "Stairs" AP (192.168.4.1, captive page); join the hall WiFi from the page (ClarkShop preset)
-//          -> http://hall-stairs.local, http://hall-stairs or its IP. MQTT is optional (blank broker = off).
+//          -> http://hall-window.local, http://hall-window or its IP. MQTT is optional (blank broker = off).
 //          Credentials live in NVS, never in this public repo.
 // Firmware: page -> Install latest (phone fetches the newest build from Pages and posts it to /update),
-//           or Upload file, or from a computer:  curl -F "f=@stairs.bin" http://hall-stairs.local/update
+//           or Upload file, or from a computer:  curl -F "f=@window.bin" http://hall-window.local/update
 // Core split: core 1 = the LEDs (loop). core 0 = WiFi, web, MQTT, updates (netTask). LEDs hold still during an update.
 
 #include <WiFi.h>
@@ -26,18 +26,18 @@
 #include <FastLED.h>
 
 #if __has_include("version.h")
-#include "version.h"                // CI writes FW_VERSION = the short commit SHA (same as stairs/manifest.json)
+#include "version.h"                // CI writes FW_VERSION = the short commit SHA (same as window/manifest.json)
 #endif
 #ifndef FW_VERSION
 #define FW_VERSION  "dev"
 #endif
-#define LATEST_URL  "https://jobot101.github.io/Ragamuffin-Flasher/stairs/"
-#define AP_SSID     "Stairs"
+#define LATEST_URL  "https://jobot101.github.io/Ragamuffin-Flasher/window/"
+#define AP_SSID     "Window"
 #define AP_PASS     "ragamuffin"
-#define HOSTNAME    "hall-stairs"
+#define HOSTNAME    "hall-window"
 #define HALL_SSID   "STARLINK"      // the hall network: page default + preset. Password typed once (page or USB serial), NVS only
 #define HOME_SSID   "ClarkShop"     // shop preset; never put a password in this public repo
-#define TOPIC_BASE  "ragamuffin/hall/stairs"
+#define TOPIC_BASE  "ragamuffin/hall/window"
 #define PIN_A       4               // output 1 (Super Mini GPIO 4)
 #define PIN_B       5               // output 2 (Super Mini GPIO 5), 0 pixels = off
 #define MAX_PIX     4000            // per output (~120 ms per frame at 4000; solid colour only redraws on change)
@@ -48,14 +48,15 @@ struct Cfg {
   int ord = 0;                      // wire colour order, index into ORDERS
   int limMA = 4200;                 // supply limit, 0 = no limit
   int pixMA = 60;                   // one pixel at full white (WS2812B 5 V = 60)
-  int trimB = 100;                  // output 2 level % (dark treads on one flight)
+  int trimB = 100;                  // output 2 level %
   int fadeMs = 600;
 } cfg;
 const char* ORDERS[] = {"GRB", "RGB", "BRG", "RBG", "GBR", "BGR"};
 const int NORD = 6;
 
 struct Look { uint8_t r, g, b; int bri; bool test; };
-Look look = {255, 147, 41, 40, true};   // fresh board: Test on at 40 % so a new strip shows everything straight away
+Look look = {255, 147, 41, 40, true};
+// NVS namespace stays "stairs" (this started as the stair lights) so a board moved over keeps its WiFi and strip settings   // fresh board: Test on at 40 % so a new strip shows everything straight away
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 volatile uint32_t lookVer = 1;
 volatile bool updating = false;

@@ -1,20 +1,21 @@
-# Hall stair lights (stairs/): builds on its own and publishes ONLY https://jobot101.github.io/Ragamuffin-Flasher/stairs/.
+# Hall window lights (window/): builds on its own and publishes ONLY .../Ragamuffin-Flasher/window/ (+ a copy in stairs/,
+# so a board still running the old stair-lights build moves over with Install latest).
 # The flasher page and the other boards stay untouched.
-# One addressable strip (GPIO 4, optional GPIO 5) on any ESP32-S3, the Super Mini included. Arduino core 3.x, 4 MB image, no PSRAM, DIO flash so it boots on any
+# One addressable strip around the rose window (GPIO 4, optional GPIO 5) on any ESP32-S3, the Super Mini included. Arduino core 3.x, 4 MB image, no PSRAM, DIO flash so it boots on any
 # S3 module; native-USB serial (CDC on boot) for the flasher's boot log. Boards update from the page (Install latest).
-name: stairs
+name: window
 
 on:
   push:
     branches: [main, "dev/**"]
-    paths: [stairs/**, .github/workflows/stairs.yml]
+    paths: [window/**, .github/workflows/window.yml]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: stairs-${{ github.ref }}
+  group: window-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -28,7 +29,7 @@ jobs:
           path: |
             ~/.arduino15
             ~/.cache/arduino
-          key: arduino-esp32-3.2.0-stairs
+          key: arduino-esp32-3.2.0-window
 
       - uses: arduino/setup-arduino-cli@v2
       - name: install esp32 core 3.x
@@ -42,33 +43,34 @@ jobs:
       - name: compile
         run: |
           set -o pipefail
-          echo "#define FW_VERSION \"${GITHUB_SHA::7}\"" > stairs/version.h
+          echo "#define FW_VERSION \"${GITHUB_SHA::7}\"" > window/version.h
           arduino-cli compile --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=disabled,FlashSize=4M,PartitionScheme=default,FlashMode=dio" \
-            --export-binaries --output-dir out stairs 2>&1 | tee stairs.log
+            --export-binaries --output-dir out window 2>&1 | tee window.log
 
       - name: report compile errors
         if: failure()
-        run: grep -E "error:|Error" stairs.log | head -30 | while IFS= read -r l; do echo "::error::${l//%/%25}"; done
+        run: grep -E "error:|Error" window.log | head -30 | while IFS= read -r l; do echo "::error::${l//%/%25}"; done
 
       - name: package
         run: |
           B0=$(find ~/.arduino15 -name boot_app0.bin | head -1)
-          d=pub; mkdir -p $d   # not stairs/: that is the source folder
-          cp out/stairs.ino.bootloader.bin $d/bootloader.bin
-          cp out/stairs.ino.partitions.bin $d/partitions.bin
+          d=pub; mkdir -p $d   # not window/: that is the source folder
+          cp out/window.ino.bootloader.bin $d/bootloader.bin
+          cp out/window.ino.partitions.bin $d/partitions.bin
           cp "$B0" $d/boot_app0.bin
-          cp out/stairs.ino.bin $d/stairs.bin
+          cp out/window.ino.bin $d/window.bin
+          cp $d/window.bin $d/stairs.bin   # old stair-lights boards fetch stairs.bin
           cat > $d/manifest.json <<JSON
-          {"name":"stair lights","version":"${GITHUB_SHA::7}","builds":[{"chipFamily":"ESP32-S3","parts":[
+          {"name":"window lights","version":"${GITHUB_SHA::7}","builds":[{"chipFamily":"ESP32-S3","parts":[
             {"path":"bootloader.bin","offset":0},{"path":"partitions.bin","offset":32768},
-            {"path":"boot_app0.bin","offset":57344},{"path":"stairs.bin","offset":65536}]}]}
+            {"path":"boot_app0.bin","offset":57344},{"path":"window.bin","offset":65536}]}]}
           JSON
           ls -la $d
-          echo "::notice::stairs ${GITHUB_SHA::7}: $(stat -c %s $d/stairs.bin) bytes"
+          echo "::notice::window ${GITHUB_SHA::7}: $(stat -c %s $d/window.bin) bytes"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: stairs
+          name: window
           path: pub/
 
   publish:
@@ -78,11 +80,18 @@ jobs:
     concurrency: { group: gh-pages, cancel-in-progress: false }
     steps:
       - uses: actions/download-artifact@v4
-        with: { name: stairs, path: stairs }
-      - name: publish stairs/ only (rest of the flasher site untouched)
+        with: { name: window, path: pub }
+      - name: publish window/ only (rest of the flasher site untouched)
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: stairs
+          publish_dir: pub
+          destination_dir: window
+          keep_files: true
+      - name: same build into stairs/ (old stair-lights boards update from there)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: pub
           destination_dir: stairs
           keep_files: true

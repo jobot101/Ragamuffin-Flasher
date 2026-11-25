@@ -4,4 +4,4 @@ solenoid/version.h
 chime/version.h
 chime_box/version.h
 chime_box/build/
-stairs/version.h
+window/version.h

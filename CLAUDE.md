@@ -12,7 +12,7 @@ GitHub Actions is the build machine. Ship a change by pushing to `main`, then re
   - Android Chrome → WebUSB, through `web-serial-polyfill` for 303A (native USB) or esptool-js's WebUSBSerialPort for CH340.
   - Desktop → Web Serial.
   - Keep baud at 115200.
-  - `BOARDS` in `main.js`: `arm`/`cam` read from `https://jobot101.github.io/xarm/` (CORS `*`); `sol`/`chime`/`chimebox`/`stairs` read from `./sol/`, `./chime/`, `./chimebox/` and `./stairs/`.
+  - `BOARDS` in `main.js`: `arm`/`cam` read from `https://jobot101.github.io/xarm/` (CORS `*`); `sol`/`chime`/`chimebox`/`window` read from `./sol/`, `./chime/`, `./chimebox/` and `./window/`.
   - Every board except `arm` gets a full erase and a write of all 4 parts.
 - **`solenoid/`:** a one-MOSFET solenoid tester. See `solenoid/HANDOFF.md` (hardware, wiring, settings, what's still unverified).
 - **`chime/`:** the bell machine (`chime.ino`).
@@ -25,11 +25,11 @@ GitHub Actions is the build machine. Ship a change by pushing to `main`, then re
     - an MQTT broker set on the page (blank = off), under topics `ragamuffin/hall/chimes/{note,mute,status,played}`;
     - **Install latest** posts to `/update`, and the coils stay muted while it writes.
   - **NVS namespace `chime`:** `ssid wpass mhost mport muser mpass`.
-- **`stairs/`:** the hall stair lights (`stairs.ino`, see `stairs/HANDOFF.md`). One colour + one brightness for the whole stair, plus a Test mode.
+- **`window/`:** the hall window lights, the LED ring around the rose window (`window.ino`, see `window/HANDOFF.md`). Started Nov 24 2026 as the stair lights. One colour + one brightness for the whole ring, plus a Test mode.
   - FastLED on **GPIO 4** (+ **GPIO 5**, 0 px = off); pixel counts are NVS settings (a change restarts). Colour order is applied in software, so a new reel is a setting.
   - A supply limit in mA cuts brightness; LEDs run on core 1 (loop), WiFi/web/MQTT/updates on core 0 (`netTask`), LEDs hold still during an update.
-  - Network like the solenoid: AP "Stairs" / ragamuffin, STARLINK (hall) + ClarkShop presets, `hall-stairs.local`, MQTT `ragamuffin/hall/stairs/{set,state,status}`.
-  - **NVS namespace `stairs`:** `nA nB ord lim pma trim fade r g b bri test ssid wpass mhost mport muser mpass`.
+  - Network like the solenoid: AP "Window" / ragamuffin, STARLINK (hall) + ClarkShop presets, `hall-window.local`, MQTT `ragamuffin/hall/window/{set,state,status}`.
+  - **NVS namespace `stairs`** (kept from the stair-lights start, so moved boards keep settings): `nA nB ord lim pma trim fade r g b bri test ssid wpass mhost mport muser mpass`.
 - **`chime_box/`:** the hall chimes' control firmware on the original **ESP32-S3-BOX** (TT21100 touch, ILI9342C, ES8311 speaker) and its dock. Modular since 2026-11-08:
   - **Read first:**
     - `chimes.h` is the shared contract.
@@ -73,7 +73,7 @@ GitHub Actions is the build machine. Ship a change by pushing to `main`, then re
 | `solenoid/**` | `solenoid.yml` | `sol/` (`keep_files`) |
 | `chime/**` | `chime.yml` | `chime/` (`keep_files`) |
 | `chime_box/**` | `chimebox.yml` | `chimebox/` (`keep_files`); 16 MB, PSRAM opi, `app3M_fat9M_16MB` |
-| `stairs/**` | `stairs.yml` | `stairs/` (`keep_files`) |
+| `window/**` | `window.yml` | `window/` + a copy in `stairs/` (`keep_files`) |
 | `flasher/**` | `flasher.yml` | the page root (`keep_files`) |
 
 - **Firmware builds:** arduino-cli with esp32 core 3.2.0, FQBN `esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=disabled,FlashSize=4M,PartitionScheme=default,FlashMode=dio`.
@@ -90,4 +90,4 @@ GitHub Actions is the build machine. Ship a change by pushing to `main`, then re
   - New Rocker for the wordmark and headings (a stand-in for the logo's face), Alegreya Sans for the UI. Both are self-hosted through @fontsource.
   - **`flasher/rose.js`** draws the window exactly. It's used by the page and by `brand/ragamuffin-hall-window.svg`; regenerate that file if rose.js changes.
   - While flashing, the petals go white and get coloured in as progress (`roseFill`). The progress bar uses the ring's red/blue dashes.
-  - **Board colours:** arm = yellow, camera = blue, solenoid = green, chimes and Chimes BOX = red, stair lights = yellow (`body[data-board]` → `--gem` fills the Flash button). A new board needs a colour from those four.
+  - **Board colours:** arm = yellow, camera = blue, solenoid = green, chimes and Chimes BOX = red, window lights = yellow (`body[data-board]` → `--gem` fills the Flash button). A new board needs a colour from those four.
