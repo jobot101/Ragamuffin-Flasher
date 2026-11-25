@@ -14,7 +14,7 @@ import { SerialPort as CdcPort } from 'web-serial-polyfill'
 import './style.css'
 import { roseSVG } from './rose.js'
 
-const ESPRESSIF = 0x303a, WCH = 0x1a86
+const ESPRESSIF = 0x303a, WCH = 0x1a86, SILABS = 0x10c4   // SILABS: CP210x on a DevKit's UART port (desktop only)
 const XARM = 'https://jobot101.github.io/xarm/'   // Muffin's builds stay in the xarm repo
 const BOARDS = {
   arm: { base: XARM + 'fw/', label: 'arm brain', expectMB: 16, appOffset: 0x10000 },
@@ -71,7 +71,7 @@ function render(hint = false) {
     sol: 'Plug the ESP32-S3 board into this phone. Two USB ports? Either works. Unplug the solenoid supply first.',
     chime: 'Plug the chimes ESP32-S3 into this phone. Two USB ports? Either works. Switch the 24 V coil supply off first.',
     chimebox: 'Plug the ESP32-S3-BOX into this phone by its USB-C. Switch the 24 V coil supply off first.',
-    stairs: 'Plug the stair lights ESP32-S3 (the Super Mini) into this phone. The strip can stay wired.',
+    stairs: 'Plug the stair lights ESP32-S3 (Super Mini or DevKit, either USB port) into this phone. The strip can stay wired.',
   }[board])
 }
 
@@ -86,7 +86,7 @@ const VIA = ANDROID && 'usb' in navigator ? 'webusb' : 'serial' in navigator ? '
 
 async function pickPort() {
   if (VIA === 'serial') {
-    const filters = [{ usbVendorId: ESPRESSIF }, { usbVendorId: WCH }]
+    const filters = [{ usbVendorId: ESPRESSIF }, { usbVendorId: WCH }, { usbVendorId: SILABS }]
     const known = (await navigator.serial.getPorts()).filter(p => filters.some(f => f.usbVendorId === p.getInfo().usbVendorId))
     return known[0] || navigator.serial.requestPort({ filters })
   }

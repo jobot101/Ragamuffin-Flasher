@@ -1,4 +1,5 @@
-// Hall stair lights: one ESP32-S3 (Super Mini), addressable strip on GPIO 4, optional second run on GPIO 5.
+// Hall stair lights: any ESP32-S3 (DevKit or Super Mini), addressable strip on GPIO 4, optional second run on GPIO 5.
+// USB: commands and the boot line work on the native USB port and on a DevKit's UART port (Serial0).
 // Flashed from the Ragamuffin Flasher (board "Stair lights"). Then join WiFi "Stairs" (pw ragamuffin) -> 192.168.4.1
 //
 // What it does: the whole stair shows one colour at one brightness. That's the only control, on purpose.
@@ -321,7 +322,8 @@ void netTask(void*) {
   char topic[64];
   WiFi.onEvent([](WiFiEvent_t, WiFiEventInfo_t i) { staWhy = i.wifi_sta_disconnected.reason; }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
   WiFi.onEvent([](WiFiEvent_t, WiFiEventInfo_t) {
-    Serial.printf("hall WiFi \"%s\": http://%s  http://%s.local\n", staSsid.c_str(), WiFi.localIP().toString().c_str(), HOSTNAME);
+    for (Stream* S : {(Stream*)&Serial, (Stream*)&Serial0})
+      S->printf("hall WiFi \"%s\": http://%s  http://%s.local\n", staSsid.c_str(), WiFi.localIP().toString().c_str(), HOSTNAME);
   }, ARDUINO_EVENT_WIFI_STA_GOT_IP);
   WiFi.mode(WIFI_AP_STA);
   WiFi.setHostname(HOSTNAME);
@@ -336,8 +338,9 @@ void netTask(void*) {
   mqtt.setCallback(onMqtt);
   mqtt.setSocketTimeout(2);
   mqtt.setBufferSize(1024);
-  Serial.printf("%s  stair lights: %d px on GPIO %d, %d px on GPIO %d, order %s  WiFi \"%s\" -> http://%s\n",
-                FW_VERSION, cfg.nA, PIN_A, cfg.nB, PIN_B, ORDERS[cfg.ord], AP_SSID, WiFi.softAPIP().toString().c_str());
+  for (Stream* S : {(Stream*)&Serial, (Stream*)&Serial0})
+    S->printf("%s  stair lights: %d px on GPIO %d, %d px on GPIO %d, order %s  WiFi \"%s\" -> http://%s\n",
+              FW_VERSION, cfg.nA, PIN_A, cfg.nB, PIN_B, ORDERS[cfg.ord], AP_SSID, WiFi.softAPIP().toString().c_str());
 
   for (;;) {
     uint32_t ms = millis();
@@ -378,25 +381,24 @@ void netTask(void*) {
 // ---------- serial (USB) ----------
 //   wifi<TAB>ssid<TAB>pass   join the hall WiFi        c<rrggbb>  colour      b<0-100>  brightness
 //   t  test on/off            n<pixels>  set GPIO 4 count (restarts)          ?  state
-void serialCmd() {
-  static String line;
-  while (Serial.available()) {
-    char ch = Serial.read();
+void serialCmd(Stream& S, String& line) {
+  while (S.available()) {
+    char ch = S.read();
     if (ch != '\n' && ch != '\r') { line += ch; continue; }
     line.trim(); if (!line.length()) continue;
     if (line.startsWith("wifi\t")) {
       int t = line.indexOf('\t', 5);
       staSsid = t < 0 ? line.substring(5) : line.substring(5, t); staPass = t < 0 ? "" : line.substring(t + 1);
       Preferences prefs; prefs.begin("stairs", false); prefs.putString("ssid", staSsid); prefs.putString("wpass", staPass); prefs.end();
-      staBegin(); Serial.printf("joining %s\n", staSsid.c_str());
+      staBegin(); S.printf("joining %s\n", staSsid.c_str());
     } else {
       char c = line[0]; String a = line.substring(1); a.trim(); Look L = getLook();
-      if (c == 'c') { uint8_t r, g, b; if (parseHex(a, r, g, b)) { L.r = r; L.g = g; L.b = b; L.test = false; setLook(L); } else Serial.println("c<rrggbb>"); }
+      if (c == 'c') { uint8_t r, g, b; if (parseHex(a, r, g, b)) { L.r = r; L.g = g; L.b = b; L.test = false; setLook(L); } else S.println("c<rrggbb>"); }
       else if (c == 'b') { L.bri = a.toInt(); setLook(L); }
       else if (c == 't') { L.test = !L.test; setLook(L); }
-      else if (c == 'n') { cfg.nA = constrain((int)a.toInt(), 1, MAX_PIX); saveCfg(); Serial.println("restarting"); delay(200); ESP.restart(); }
-      Serial.println(stateJson());
-      if (c == '?' || c == 'h') Serial.println("c<rrggbb> colour · b<0-100> brightness · t test · n<pixels> GPIO 4 count · wifi<TAB>ssid<TAB>pass · ? state");
+      else if (c == 'n') { cfg.nA = constrain((int)a.toInt(), 1, MAX_PIX); saveCfg(); S.println("restarting"); delay(200); ESP.restart(); }
+      S.println(stateJson());
+      if (c == '?' || c == 'h') S.println("c<rrggbb> colour · b<0-100> brightness · t test · n<pixels> GPIO 4 count · wifi<TAB>ssid<TAB>pass · ? state");
     }
     line = "";
   }
@@ -405,6 +407,7 @@ void serialCmd() {
 // ---------- main ----------
 void setup() {
   Serial.begin(115200);
+  Serial0.begin(115200);
   loadAll();
   ledA = new CRGB[cfg.nA]; tA = new CRGB[cfg.nA];
   FastLED.addLeds<WS2812B, PIN_A, RGB>(ledA, cfg.nA);
@@ -416,7 +419,8 @@ void setup() {
 }
 
 void loop() {                       // core 1: LEDs only
-  serialCmd();
+  static String l0, l1;
+  serialCmd(Serial, l0); serialCmd(Serial0, l1);   // native USB + the DevKit's UART port
   static bool was = true; static uint32_t tDown = 0;   // BOOT button: test on/off
   bool upb = digitalRead(BOOT_BTN);
   if (!upb && was && millis() - tDown > 250) { tDown = millis(); Look L = getLook(); L.test = !L.test; setLook(L); }
