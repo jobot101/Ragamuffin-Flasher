@@ -344,7 +344,7 @@ void netTask(void*) {
   mqtt.setSocketTimeout(2);
   mqtt.setBufferSize(1024);
   for (Stream* S : {(Stream*)&Serial, (Stream*)&Serial0})
-    S->printf("%s  stair lights: %d px on GPIO %d, %d px on GPIO %d, order %s  WiFi \"%s\" -> http://%s\n",
+    S->printf("%s  window lights: %d px on GPIO %d, %d px on GPIO %d, order %s  WiFi \"%s\" -> http://%s\n",
               FW_VERSION, cfg.nA, PIN_A, cfg.nB, PIN_B, ORDERS[cfg.ord], AP_SSID, WiFi.softAPIP().toString().c_str());
 
   for (;;) {
@@ -391,7 +391,12 @@ void serialCmd(Stream& S, String& line) {
     char ch = S.read();
     if (ch != '\n' && ch != '\r') { line += ch; continue; }
     line.trim(); if (!line.length()) continue;
-    if (line.startsWith("wifi\t")) {
+    if (line == "scan") {          // what the board can actually hear: name, signal, channel, security
+      int n = WiFi.scanNetworks();
+      S.printf("%d networks\n", n);
+      for (int i = 0; i < n; i++) S.printf("  \"%s\"  %d dBm  ch %d  auth %d\n", WiFi.SSID(i).c_str(), WiFi.RSSI(i), WiFi.channel(i), (int)WiFi.encryptionType(i));
+      WiFi.scanDelete();
+    } else if (line.startsWith("wifi\t")) {
       int t = line.indexOf('\t', 5);
       staSsid = t < 0 ? line.substring(5) : line.substring(5, t); staPass = t < 0 ? "" : line.substring(t + 1);
       Preferences prefs; prefs.begin("stairs", false); prefs.putString("ssid", staSsid); prefs.putString("wpass", staPass); prefs.end();
@@ -403,7 +408,7 @@ void serialCmd(Stream& S, String& line) {
       else if (c == 't') { L.test = !L.test; setLook(L); }
       else if (c == 'n') { cfg.nA = constrain((int)a.toInt(), 1, MAX_PIX); saveCfg(); S.println("restarting"); delay(200); ESP.restart(); }
       S.println(stateJson());
-      if (c == '?' || c == 'h') S.println("c<rrggbb> colour · b<0-100> brightness · t test · n<pixels> GPIO 4 count · wifi<TAB>ssid<TAB>pass · ? state");
+      if (c == '?' || c == 'h') S.println("c<rrggbb> colour · b<0-100> brightness · t test · n<pixels> GPIO 4 count · wifi<TAB>ssid<TAB>pass · scan · ? state");
     }
     line = "";
   }
