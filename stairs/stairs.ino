@@ -228,7 +228,7 @@ void staBegin() { staWhy = 0; WiFi.disconnect(); WiFi.begin(staSsid.c_str(), sta
 void staService() {
   if (!staSsid.length()) return;
   if (WiFi.status() == WL_CONNECTED) { staTry = 0; staNext = millis() + 45000; return; }
-  if (staTry && millis() - staTry > 15000) { WiFi.disconnect(); staTry = 0; staNext = millis() + 45000; }
+  if (staTry && millis() - staTry > 20000) { WiFi.disconnect(); staTry = 0; staNext = millis() + 45000; }
   else if (!staTry && (int32_t)(millis() - staNext) >= 0) staBegin();
 }
 
@@ -330,6 +330,10 @@ void netTask(void*) {
   WiFi.softAP(AP_SSID, AP_PASS);
   WiFi.setSleep(false);
   WiFi.setAutoReconnect(false);   // staService() paces the retries
+  // Starlink / mesh routers: scan every channel and take the strongest node, and accept WPA/WPA2/WPA3 mixes
+  WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+  WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
+  WiFi.setMinSecurity(WIFI_AUTH_WPA_PSK);
   if (staSsid.length()) staBegin();
   dns.start(53, "*", WiFi.softAPIP());
   MDNS.begin(HOSTNAME); MDNS.addService("http", "tcp", 80);
