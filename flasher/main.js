@@ -169,7 +169,7 @@ async function flash() {
       sol: 'Solenoid done ✓ — join WiFi “Solenoid” (pw ragamuffin) → 192.168.4.1. MOSFET gate on GPIO 4 (change it there). BOOT button = strike.',
       chime: 'Chimes done ✓ — join WiFi “Chimes” (pw ragamuffin) → 192.168.4.1: drivers found, test tubes, hall WiFi, MQTT, Install latest. MIDI in on GPIO 18, I2C SDA 8 / SCL 9.',
       chimebox: 'Chimes BOX done ✓ — the screen shows the 25 tubes and TAP. Join WiFi “Chimes” (pw ragamuffin) → 192.168.4.1 for the hall WiFi and the solenoid GPIO. Drivers on PMOD1 (SDA 41 / SCL 40), MIDI in on GPIO 44.',
-      window: 'Window lights done ✓ — the ring runs every colour as a test. Join WiFi “Window” (pw ragamuffin) → 192.168.4.1: set the pixel count and colour order, then the hall WiFi (STARLINK). Strip data on GPIO 4 (second run on GPIO 5).',
+      window: 'Window lights done ✓ — the ring runs every colour as a test. Join WiFi “Window” (no password) → 192.168.4.1: set the pixel count and colour order, then the hall WiFi (STARLINK). Strip data on GPIO 4 (second run on GPIO 5).',
     }[board], 'ok')
     document.body.classList.add('done')
   } catch (e) {

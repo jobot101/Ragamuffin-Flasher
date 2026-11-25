@@ -28,7 +28,7 @@ GitHub Actions is the build machine. Ship a change by pushing to `main`, then re
 - **`window/`:** the hall window lights, the LED ring around the rose window (`window.ino`, see `window/HANDOFF.md`). Started Nov 24 2026 as the stair lights. One colour + one brightness for the whole ring, plus a Test mode.
   - FastLED on **GPIO 4** (+ **GPIO 5**, 0 px = off); pixel counts are NVS settings (a change restarts). Colour order is applied in software, so a new reel is a setting.
   - A supply limit in mA cuts brightness; LEDs run on core 1 (loop), WiFi/web/MQTT/updates on core 0 (`netTask`), LEDs hold still during an update.
-  - Network like the solenoid: AP "Window" / ragamuffin, STARLINK (hall) + ClarkShop presets, `hall-window.local`, MQTT `ragamuffin/hall/window/{set,state,status}`.
+  - Network like the solenoid: AP "Window" (open, no password — owner's call), STARLINK (hall) + ClarkShop presets, `hall-window.local`, MQTT `ragamuffin/hall/window/{set,state,status}`.
   - **NVS namespace `stairs`** (kept from the stair-lights start, so moved boards keep settings): `nA nB ord lim pma trim fade r g b bri test ssid wpass mhost mport muser mpass`.
 - **`chime_box/`:** the hall chimes' control firmware on the original **ESP32-S3-BOX** (TT21100 touch, ILI9342C, ES8311 speaker) and its dock. Modular since 2026-11-08:
   - **Read first:**

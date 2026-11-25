@@ -27,7 +27,7 @@ After the first install, each board updates itself from its own page with **Inst
 |---|---|---|
 | Solenoid | "Solenoid" → 192.168.4.1 | solenoid.local |
 | Hall chimes / Chimes BOX | "Chimes" → 192.168.4.1 | hall-chimes.local |
-| Hall window | "Window" → 192.168.4.1 | hall-window.local |
+| Hall window | "Window" (no password) → 192.168.4.1 | hall-window.local |
 
 Keep mobile data on, and open the page in Chrome (not the WiFi sign-in pop-up).
 

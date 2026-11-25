@@ -1,6 +1,6 @@
 // Hall window lights (the rose window ring): any ESP32-S3 (DevKit or Super Mini), addressable strip on GPIO 4, optional second run on GPIO 5.
 // USB: commands and the boot line work on the native USB port and on a DevKit's UART port (Serial0).
-// Flashed from the Ragamuffin Flasher (board "Hall window"). Then join WiFi "Window" (pw ragamuffin) -> 192.168.4.1
+// Flashed from the Ragamuffin Flasher (board "Hall window"). Then join WiFi "Window" (open, no password) -> 192.168.4.1
 //
 // What it does: the whole ring shows one colour at one brightness. That's the only control, on purpose.
 //               A Test button runs every colour and the busy effects so a new strip can be checked end to end.
@@ -33,7 +33,7 @@
 #endif
 #define LATEST_URL  "https://jobot101.github.io/Ragamuffin-Flasher/window/"
 #define AP_SSID     "Window"
-#define AP_PASS     "ragamuffin"
+#define AP_PASS     nullptr       // open network: the owner wants no password on "Window"
 #define HOSTNAME    "hall-window"
 #define HALL_SSID   "STARLINK"      // the hall network: page default + preset. Password typed once (page or USB serial), NVS only
 #define HOME_SSID   "ClarkShop"     // shop preset; never put a password in this public repo

@@ -1,7 +1,7 @@
 # Handoff — hall window lights
 
 Folder `window/`, firmware `window.ino`. Board button "Hall window" on the flasher. Started Nov 24 2026 as the stair lights; renamed the same night to the hall window lights (the LED neon ring around the rose window).
-AP "Window" / ragamuffin, `hall-window.local`. NVS namespace is still `stairs`. CI also publishes into `stairs/` so the first board (flashed as stair lights) moves over with Install latest.
+AP "Window" (open, no password, owner's call Nov 24), `hall-window.local`. NVS namespace is still `stairs`. CI also publishes into `stairs/` so the first board (flashed as stair lights) moves over with Install latest.
 
 ## The job (original stair plan, kept for reference)
 - The Ragamuffin Hall stair: two flights (about 10 + 12 steps) meeting at a landing. The plan doc is "Green room stair lighting plan" (Claude Docs).
