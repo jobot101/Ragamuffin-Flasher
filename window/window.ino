@@ -57,20 +57,6 @@ struct Cfg {
 const int MAX_RINGS = 8;
 int nRings = 0, ringStart[MAX_RINGS + 1], ringLen[MAX_RINGS + 1]; bool ringRev[MAX_RINGS + 1];
 volatile uint32_t previewUntil = 0;   // "Show rings": each ring in a glass colour for a while
-void parseRings() {
-  nRings = 0; int at = 0; String s = cfg.rings + ",";
-  int from = 0;
-  for (int i = 0; i < (int)s.length() && nRings < MAX_RINGS; i++) {
-    if (s[i] != ',' && s[i] != ' ' && s[i] != ';') continue;
-    String t = s.substring(from, i); t.trim(); from = i + 1;
-    if (!t.length()) continue;
-    int n = t.toInt(); if (n <= 0) continue;
-    bool rev = t.endsWith("r") || t.endsWith("R");
-    n = min(n, cfg.nA - at); if (n <= 0) break;
-    ringStart[nRings] = at; ringLen[nRings] = n; ringRev[nRings] = rev; nRings++; at += n;
-  }
-  if (at < cfg.nA) { ringStart[nRings] = at; ringLen[nRings] = cfg.nA - at; ringRev[nRings] = false; nRings++; }
-}
 const char* ORDERS[] = {"GRB", "RGB", "BRG", "RBG", "GBR", "BGR"};
 const int NORD = 6;
 
@@ -129,6 +115,21 @@ bool applyLookArgs(std::function<bool(const char*)> has, std::function<String(co
 }
 
 // ---------- config ----------
+void parseRings() {
+  nRings = 0; int at = 0; String s = cfg.rings + ",";
+  int from = 0;
+  for (int i = 0; i < (int)s.length() && nRings < MAX_RINGS; i++) {
+    if (s[i] != ',' && s[i] != ' ' && s[i] != ';') continue;
+    String t = s.substring(from, i); t.trim(); from = i + 1;
+    if (!t.length()) continue;
+    int n = t.toInt(); if (n <= 0) continue;
+    bool rev = t.endsWith("r") || t.endsWith("R");
+    n = min(n, cfg.nA - at); if (n <= 0) break;
+    ringStart[nRings] = at; ringLen[nRings] = n; ringRev[nRings] = rev; nRings++; at += n;
+  }
+  if (at < cfg.nA) { ringStart[nRings] = at; ringLen[nRings] = cfg.nA - at; ringRev[nRings] = false; nRings++; }
+}
+
 void loadAll() {
   FlashHold fh; Preferences prefs; prefs.begin("stairs", true);
   cfg.nA = prefs.getInt("nA", cfg.nA); cfg.nB = prefs.getInt("nB", cfg.nB); cfg.ord = prefs.getInt("ord", cfg.ord);
