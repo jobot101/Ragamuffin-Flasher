@@ -60,6 +60,15 @@ Look look = {255, 147, 41, 40, true};
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 volatile uint32_t lookVer = 1;
 volatile bool updating = false;
+// Flash safety: the LED driver's RMT interrupt isn't cache-safe, so a flash write (NVS, WiFi calibration, OTA)
+// while a frame is going out crashes the chip ("Cache disabled but cached memory region accessed").
+// LEDs start only after WiFi is up (its first-boot calibration write is done), and every NVS write holds them.
+volatile bool netReady = false, ledHold = false, ledBusy = false;
+struct FlashHold {
+  FlashHold()  { ledHold = true; while (ledBusy) delay(1); delay(3 + cfgFrameMs()); }
+  ~FlashHold() { ledHold = false; }
+  static int cfgFrameMs();
+};
 volatile int estMA = 0; volatile bool capped = false;
 uint32_t lookDirtyAt = 0;           // save look to NVS 2 s after the last change (sliders send a lot)
 
@@ -101,7 +110,7 @@ bool applyLookArgs(std::function<bool(const char*)> has, std::function<String(co
 
 // ---------- config ----------
 void loadAll() {
-  Preferences prefs; prefs.begin("stairs", true);
+  FlashHold fh; Preferences prefs; prefs.begin("stairs", true);
   cfg.nA = prefs.getInt("nA", cfg.nA); cfg.nB = prefs.getInt("nB", cfg.nB); cfg.ord = prefs.getInt("ord", cfg.ord);
   cfg.limMA = prefs.getInt("lim", cfg.limMA); cfg.pixMA = prefs.getInt("pma", cfg.pixMA);
   cfg.trimB = prefs.getInt("trim", cfg.trimB); cfg.fadeMs = prefs.getInt("fade", cfg.fadeMs);
@@ -115,17 +124,19 @@ void loadAll() {
   if (cfg.ord < 0 || cfg.ord >= NORD) cfg.ord = 0;
 }
 void saveCfg() {
-  Preferences prefs; prefs.begin("stairs", false);
+  FlashHold fh; Preferences prefs; prefs.begin("stairs", false);
   prefs.putInt("nA", cfg.nA); prefs.putInt("nB", cfg.nB); prefs.putInt("ord", cfg.ord);
   prefs.putInt("lim", cfg.limMA); prefs.putInt("pma", cfg.pixMA); prefs.putInt("trim", cfg.trimB); prefs.putInt("fade", cfg.fadeMs);
   prefs.end();
 }
 void saveLook() {
   Look l = getLook();
-  Preferences prefs; prefs.begin("stairs", false);
+  FlashHold fh; Preferences prefs; prefs.begin("stairs", false);
   prefs.putUChar("r", l.r); prefs.putUChar("g", l.g); prefs.putUChar("b", l.b); prefs.putInt("bri", l.bri); prefs.putBool("test", l.test);
   prefs.end();
 }
+
+int FlashHold::cfgFrameMs() { return (cfg.nA + cfg.nB) * 30 / 1000 + 1; }   // ~30 us per pixel on the wire
 
 // ---------- LEDs (core 1) ----------
 // FastLED sends bytes as given (RGB); the strip's real order is applied here so a new reel is a setting, not a build.
@@ -160,15 +171,18 @@ void showFrame(float briPct, uint32_t sumRGB) {   // sumRGB: sum of r+g+b over e
   bool cut = false;
   if (cfg.limMA > 0 && ma > cfg.limMA && ma > 0) { bri = max(1, (int)((uint32_t)bri * cfg.limMA / ma)); ma = cfg.limMA; cut = true; }
   estMA = ma; capped = cut;
+  if (ledHold || updating) return;
+  ledBusy = true;
   FastLED.setBrightness(bri);
   FastLED.show();
+  ledBusy = false;
 }
 
 void ledLoop() {
   static uint32_t seen = 0, lastShow = 0, fadeT0 = 0;
   static float cr = 0, cg = 0, cb = 0, cbri = 0, fr, fg, fb, fbri;   // current + fade start
   static bool wasTest = false;
-  if (updating) { delay(20); return; }
+  if (updating || ledHold || !netReady) { delay(5); return; }
   uint32_t now = millis();
   Look L = getLook();
   if (lookVer != seen) { seen = lookVer; fr = cr; fg = cg; fb = cb; fbri = cbri; fadeT0 = now; }
@@ -269,7 +283,7 @@ void setupWeb() {
   server.on("/wifi", [] {
     if (server.hasArg("forget")) { staSsid = staPass = ""; WiFi.disconnect(false, true); }
     else { staSsid = server.arg("ssid"); staPass = server.arg("pass"); }
-    Preferences prefs; prefs.begin("stairs", false); prefs.putString("ssid", staSsid); prefs.putString("wpass", staPass); prefs.end();
+    FlashHold fh; Preferences prefs; prefs.begin("stairs", false); prefs.putString("ssid", staSsid); prefs.putString("wpass", staPass); prefs.end();
     sendState();
     if (staSsid.length()) staBegin(); else staTry = 0;
   });
@@ -278,7 +292,7 @@ void setupWeb() {
     mqttPort = constrain((int)server.arg("port").toInt(), 1, 65535);
     mqttUser = server.arg("user");
     if (server.hasArg("pass")) mqttPass = server.arg("pass");
-    Preferences prefs; prefs.begin("stairs", false);
+    FlashHold fh; Preferences prefs; prefs.begin("stairs", false);
     prefs.putString("mhost", mqttHost); prefs.putUShort("mport", mqttPort);
     prefs.putString("muser", mqttUser); prefs.putString("mpass", mqttPass);
     prefs.end();
@@ -296,7 +310,7 @@ void setupWeb() {
     updating = false;
   }, [] {
     HTTPUpload& u = server.upload();
-    if (u.status == UPLOAD_FILE_START) { updating = true; delay(150); Update.begin(UPDATE_SIZE_UNKNOWN); }
+    if (u.status == UPLOAD_FILE_START) { updating = true; while (ledBusy) delay(1); delay(150); Update.begin(UPDATE_SIZE_UNKNOWN); }
     else if (u.status == UPLOAD_FILE_WRITE) Update.write(u.buf, u.currentSize);
     else if (u.status == UPLOAD_FILE_END) Update.end(true);
     else if (u.status == UPLOAD_FILE_ABORTED) { Update.abort(); updating = false; }
@@ -326,6 +340,7 @@ void netTask(void*) {
     for (Stream* S : {(Stream*)&Serial, (Stream*)&Serial0})
       S->printf("hall WiFi \"%s\": http://%s  http://%s.local\n", staSsid.c_str(), WiFi.localIP().toString().c_str(), HOSTNAME);
   }, ARDUINO_EVENT_WIFI_STA_GOT_IP);
+  WiFi.persistent(false);          // our NVS keeps the login; stop the WiFi driver writing flash on every join
   WiFi.mode(WIFI_AP_STA);
   WiFi.setHostname(HOSTNAME);
   WiFi.softAP(AP_SSID, AP_PASS);
@@ -339,6 +354,8 @@ void netTask(void*) {
   dns.start(53, "*", WiFi.softAPIP());
   MDNS.begin(HOSTNAME); MDNS.addService("http", "tcp", 80);
   setupWeb();
+  delay(300);
+  netReady = true;                 // WiFi calibration written: the LEDs may start
   mqtt.setServer(mqttHost.c_str(), mqttPort);
   mqtt.setCallback(onMqtt);
   mqtt.setSocketTimeout(2);
@@ -399,7 +416,7 @@ void serialCmd(Stream& S, String& line) {
     } else if (line.startsWith("wifi\t")) {
       int t = line.indexOf('\t', 5);
       staSsid = t < 0 ? line.substring(5) : line.substring(5, t); staPass = t < 0 ? "" : line.substring(t + 1);
-      Preferences prefs; prefs.begin("stairs", false); prefs.putString("ssid", staSsid); prefs.putString("wpass", staPass); prefs.end();
+      FlashHold fh; Preferences prefs; prefs.begin("stairs", false); prefs.putString("ssid", staSsid); prefs.putString("wpass", staPass); prefs.end();
       staBegin(); S.printf("joining %s\n", staSsid.c_str());
     } else {
       char c = line[0]; String a = line.substring(1); a.trim(); Look L = getLook();
@@ -423,7 +440,7 @@ void setup() {
   FastLED.addLeds<WS2812B, PIN_A, RGB>(ledA, cfg.nA);
   if (cfg.nB > 0) { ledB = new CRGB[cfg.nB]; tB = new CRGB[cfg.nB]; FastLED.addLeds<WS2812B, PIN_B, RGB>(ledB, cfg.nB); }
   FastLED.setDither(DISABLE_DITHER);
-  FastLED.clear(true);
+  FastLED.clear();                 // no show yet: LEDs wait for netReady
   pinMode(BOOT_BTN, INPUT_PULLUP);
   xTaskCreatePinnedToCore(netTask, "net", 12288, nullptr, 1, nullptr, 0);   // WiFi + web + MQTT + updates on core 0
 }
