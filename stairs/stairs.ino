@@ -55,9 +55,9 @@ const int NORD = 6;
 struct Look { uint8_t r, g, b; int bri; bool test; int mode; int spd; };
 Look look = {255, 147, 41, 40, true, 0, 50};
 // Modes (the everyday choices; Test is separate). Speed 50 = 1x.
-const int NMODES = 11;
+const int NMODES = 12;
 const char* MODEN[] = {"solid", "pulse + colour", "breathe", "spin", "ripple", "glass", "candle",
-                       "christmas", "candy cane", "snowfall", "twinkle"};
+                       "christmas", "candy cane", "snowfall", "twinkle", "measure"};
 bool modeUsesColour(int m) { return m == 0 || m == 2 || m == 4; }
 // NVS namespace stays "stairs" (this started as the stair lights) so a board moved over keeps its WiFi and strip settings   // fresh board: Test on at 40 % so a new strip shows everything straight away
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
@@ -202,7 +202,19 @@ void showFrame(float briPct, uint32_t sumRGB) {   // sumRGB: sum of r+g+b over e
 // stretch a 256-step pattern along the whole GPIO 4 run (GPIO 5 copies it in renderMode)
 void layV(const CRGB* v) { for (int i = 0; i < cfg.nA; i++) tA[i] = v[(i * 256) / cfg.nA]; }
 
+// measure: a ruler for filming the stairs and reading off where each step starts and ends.
+// Every 10th pixel lit, its colour changing every 100 (red, yellow, green, blue, purple, then again);
+// every 100th pixel a white bar of 3; pixel 0 = 5 green, the last pixel = 5 red. The rest dark.
+void measure(CRGB* l, int n) {
+  static const CRGB BLOCK[] = {CRGB(255, 0, 0), CRGB(255, 180, 0), CRGB(0, 255, 0), CRGB(0, 60, 255), CRGB(200, 0, 255)};
+  fill_solid(l, n, CRGB::Black);
+  for (int i = 0; i < n; i += 10) l[i] = BLOCK[(i / 100) % 5];
+  for (int i = 100; i < n; i += 100) for (int k = -1; k <= 1; k++) if (i + k < n) l[i + k] = CRGB::White;
+  for (int k = 0; k < 5 && k < n; k++) { l[k] = CRGB(0, 255, 0); l[n - 1 - k] = CRGB(255, 0, 0); }
+}
+
 void renderMode(const Look& L, uint32_t ms) {
+  if (L.mode == 11) { measure(tA, cfg.nA); measure(tB, cfg.nB); return; }   // GPIO 5 gets its own ruler
   static const CRGB GLASS[] = {CRGB(0xc6, 0x2b, 0x29), CRGB(0xfd, 0xcd, 0x09), CRGB(0x60, 0xb6, 0xe5), CRGB(0x8d, 0xad, 0x3e)};
   static CRGB v[256];
   static uint32_t tAcc = 0, last = 0;            // speed-scaled clock, so moving the speed slider never jumps
