@@ -10,7 +10,7 @@ const COLOURS = [['Warm', 'ff9329'], ['Candle', 'ff6a10'], ['White', 'ffd9b0'], 
 const MODES = [['Solid', '■'], ['Pulse + colour', '◐'], ['Breathe', '○'], ['Spin', '◎'], ['Ripple', '≋'], ['Glass', '✦'], ['Candle', '♨'],
   ['Christmas', '🎄'], ['Candy cane', '🍬'], ['Snowfall', '❄'], ['Twinkle', '✧'], ['Runner', '▥'], ['Walk up', '⤴'], ['Measure GPIO 4', '📏'], ['Measure GPIO 5', '📐']]
 const WHY = { 2: 'auth expired', 15: 'wrong password', 201: 'not found (2.4 GHz only)', 202: 'wrong password', 203: 'refused', 204: 'wrong password', 205: 'refused' }
-const STRIP = ['nA', 'nB', 'ord', 'trim', 'fade', 'lim', 'pma', 'name', 'bc', 'bw', 'mw']
+const STRIP = ['nA', 'nB', 'ord', 'trim', 'fade', 'lim', 'limB', 'pma', 'name', 'bc', 'bw', 'mw']
 
 const getJ = u => fetch(u).then(r => r.json())
 const qs = o => new URLSearchParams(o).toString()
@@ -75,8 +75,8 @@ export default function App() {
       <div className="row"><button className={'test' + (st?.test ? ' on' : '')} onClick={() => send({ test: st?.test ? 0 : 1 })}>
         {st?.test ? 'Test running — tap a colour to stop' : 'Test: every colour'}</button></div>
       <div id="st">{err || (st ? <>
-        {st.test ? 'test · ' + st.fx : (MODES[st.m] || ['?'])[0].toLowerCase() + ' · #' + st.c} · {st.b} % · {st.nA}{st.nB ? ' + ' + st.nB : ''} px · {ORD[st.ord]} · about {st.ma} mA
-        {st.cap ? <span className="warn"> · held at the {st.lim} mA limit</span> : null}</> : '…')}</div>
+        {st.test ? 'test · ' + st.fx : (MODES[st.m] || ['?'])[0].toLowerCase() + ' · #' + st.c} · {st.b} % · {st.nA}{st.nB ? ' + ' + st.nB : ''} px · {ORD[st.ord]} · about {st.limB ? `${st.maA} + ${st.maB}` : st.ma} mA
+        {st.cap ? <span className="warn"> · 100 % = the most the supplies allow</span> : null}</> : '…')}</div>
     </div>
 
     {st && <Steps st={st} show={show} />}
@@ -97,7 +97,7 @@ function Strip({ st, show }) {
   const num = (k, min, max, ph) => <input type="number" min={min} max={max} placeholder={ph} value={f[k]} onChange={set(k)} />
 
   const save = () => {
-    const o = { ...f }; ['nA', 'nB', 'ord', 'trim', 'fade', 'lim', 'pma', 'bw', 'mw'].forEach(k => o[k] = o[k] || 0)
+    const o = { ...f }; ['nA', 'nB', 'ord', 'trim', 'fade', 'lim', 'limB', 'pma', 'bw', 'mw'].forEach(k => o[k] = o[k] || 0)
     getJ('/cfg?' + qs(o)).then(j => {
       if (j.err) return setMsg(j.err)
       if (!j.restart) { setMsg('Saved ✓'); setF(pick(j, STRIP)); return show(j) }
@@ -113,7 +113,8 @@ function Strip({ st, show }) {
     <Field label="colour order"><select value={f.ord} onChange={set('ord')}>{ORD.map((o, i) => <option key={o} value={i}>{o}</option>)}</select></Field>
     <Field label="GPIO 5 level %">{num('trim', 1, 100)}</Field>
     <Field label="fade ms">{num('fade', 0, 5000)}</Field>
-    <Field label="supply limit mA">{num('lim', 0, 200000, '0 = none')}</Field>
+    <Field label="supply limit mA (GPIO 4)">{num('lim', 0, 200000, '0 = none')}</Field>
+    <Field label="GPIO 5 supply limit mA">{num('limB', 0, 200000, '0 = shares the one above')}</Field>
     <Field label="mA per pixel, full white">{num('pma', 1, 500)}</Field>
     <h2 style={{ marginTop: 14 }}>Runner <small>for Runner and Walk up</small></h2>
     <Field label="border colour"><input type="color" value={'#' + f.bc} onChange={e => setF({ ...f, bc: e.target.value.slice(1) })} /></Field>

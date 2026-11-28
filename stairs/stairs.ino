@@ -44,7 +44,8 @@
 struct Cfg {
   int nA = 300, nB = 0;             // pixels (chips) per output; changing them restarts the board
   int ord = 0;                      // wire colour order, index into ORDERS
-  int limMA = 4200;                 // supply limit, 0 = no limit
+  int limMA = 4200;                 // supply limit, 0 = no limit: GPIO 4's supply, or both outputs when limB = 0
+  int limB = 0;                     // GPIO 5's own supply limit, 0 = GPIO 5 shares limMA with GPIO 4
   int pixMA = 60;                   // one pixel at full white (WS2812B 5 V = 60)
   int trimB = 100;                  // output 2 level %
   int fadeMs = 600;
@@ -169,7 +170,7 @@ void parseAllSteps() { parseSteps(cfg.stepsA, stA, enA, bsA, beA, nStA, cfg.nA);
 void loadAll() {
   FlashHold fh; Preferences prefs; prefs.begin("stairs", true);
   cfg.nA = prefs.getInt("nA", cfg.nA); cfg.nB = prefs.getInt("nB", cfg.nB); cfg.ord = prefs.getInt("ord", cfg.ord);
-  cfg.limMA = prefs.getInt("lim", cfg.limMA); cfg.pixMA = prefs.getInt("pma", cfg.pixMA);
+  cfg.limMA = prefs.getInt("lim", cfg.limMA); cfg.limB = prefs.getInt("limB", cfg.limB); cfg.pixMA = prefs.getInt("pma", cfg.pixMA);
   cfg.trimB = prefs.getInt("trim", cfg.trimB); cfg.fadeMs = prefs.getInt("fade", cfg.fadeMs);
   devName = cleanName(prefs.getString("name", DEF_NAME)); applyName();
   cfg.stepsA = prefs.getString("stA", cfg.stepsA); cfg.stepsB = prefs.getString("stB", cfg.stepsB);
@@ -189,7 +190,7 @@ void loadAll() {
 void saveCfg() {
   FlashHold fh; Preferences prefs; prefs.begin("stairs", false);
   prefs.putInt("nA", cfg.nA); prefs.putInt("nB", cfg.nB); prefs.putInt("ord", cfg.ord);
-  prefs.putInt("lim", cfg.limMA); prefs.putInt("pma", cfg.pixMA); prefs.putInt("trim", cfg.trimB); prefs.putInt("fade", cfg.fadeMs);
+  prefs.putInt("lim", cfg.limMA); prefs.putInt("limB", cfg.limB); prefs.putInt("pma", cfg.pixMA); prefs.putInt("trim", cfg.trimB); prefs.putInt("fade", cfg.fadeMs);
   prefs.putString("stA", cfg.stepsA); prefs.putString("stB", cfg.stepsB);
   prefs.putUChar("bcr", cfg.br); prefs.putUChar("bcg", cfg.bg); prefs.putUChar("bcb", cfg.bb);
   prefs.putInt("bw", cfg.borderPx); prefs.putInt("mw", cfg.middlePx);
@@ -229,14 +230,19 @@ void effect(CRGB* l, int n) {
 // test effects draw in logical RGB and fade in place, so keep logical buffers and convert on the way out
 CRGB* tA = nullptr; CRGB* tB = nullptr;
 
-uint8_t briByte(float pct) { return pct <= 0.05f ? 0 : (uint8_t)max(1, (int)(pct * 2.55f + .5f)); }
 
-void showFrame(float briPct, uint32_t sumRGB) {   // sumRGB: sum of r+g+b over every pixel at full scale
-  uint8_t bri = briByte(briPct);
-  int ma = (int)((double)sumRGB / 765.0 * cfg.pixMA * bri / 255.0);
-  bool cut = false;
-  if (cfg.limMA > 0 && ma > cfg.limMA && ma > 0) { bri = max(1, (int)((uint32_t)bri * cfg.limMA / ma)); ma = cfg.limMA; cut = true; }
-  estMA = ma; capped = cut;
+// sumA / sumB: r+g+b summed over every pixel of GPIO 4 / GPIO 5 at full scale.
+// The supply limit sets what 100 % means: full brightness is first cut so no output goes over its own supply
+// (limB > 0: GPIO 4 on limMA, GPIO 5 on limB; else both share limMA), then the brightness slider is a share of that.
+// So every move of the slider changes the light, even when the strip could draw far more than the supplies give.
+volatile int estA = 0, estB = 0;
+void showFrame(float briPct, uint32_t sumA, uint32_t sumB) {
+  auto mA = [&](uint32_t sum, int br) { return (int)((double)sum / 765.0 * cfg.pixMA * br / 255.0); };
+  int a = mA(sumA, 255), b = mA(sumB, 255), top = 255; bool cut = false;
+  auto fit = [&](int ma, int lim) { if (lim > 0 && ma > lim) { top = min(top, max(1, (int)(255LL * lim / ma))); cut = true; } };
+  if (cfg.limB > 0) { fit(a, cfg.limMA); fit(b, cfg.limB); } else fit(a + b, cfg.limMA);
+  uint8_t bri = briPct <= 0.05f ? 0 : (uint8_t)max(1, (int)(top * briPct / 100.0f + .5f));
+  estA = mA(sumA, bri); estB = mA(sumB, bri); estMA = estA + estB; capped = cut;
   if (ledHold || updating) return;
   ledBusy = true;
   FastLED.setBrightness(bri);
@@ -385,16 +391,16 @@ void ledLoop() {
       led[st[i]] = wire(CRGB(0, 255, 0)); led[en[i] - 1] = wire(CRGB(255, 0, 0));
       sum = (uint32_t)(en[i] - st[i]) * 150 + 510;
     }
-    showFrame(100, sum); wasTest = true; delay(30);
+    showFrame(100, b ? 0 : sum, b ? sum : 0); wasTest = true; delay(30);
     return;
   }
 
   if (!L.test && L.mode > 0) {                // an animated mode
     renderMode(L, now);
-    uint32_t sum = 0;
+    uint32_t sum = 0, sumB = 0;
     for (int i = 0; i < cfg.nA; i++) { ledA[i] = wire(tA[i]); sum += tA[i].r + tA[i].g + tA[i].b; }
-    for (int i = 0; i < cfg.nB; i++) { CRGB c = tB[i]; c.nscale8_video(cfg.trimB * 255 / 100); ledB[i] = wire(c); sum += c.r + c.g + c.b; }
-    showFrame(L.bri, sum); wasTest = true; delay(8);
+    for (int i = 0; i < cfg.nB; i++) { CRGB c = tB[i]; c.nscale8_video(cfg.trimB * 255 / 100); ledB[i] = wire(c); sumB += c.r + c.g + c.b; }
+    showFrame(L.bri, sum, sumB); wasTest = true; delay(8);
     cr = cg = cb = 0; cbri = 0;
     return;
   }
@@ -405,10 +411,10 @@ void ledLoop() {
     EVERY_N_SECONDS(8) { fx = (fx + 1) % NFX; Serial.printf("test: %s\n", FXN[fx]); }
     effect(tA, cfg.nA);
     effect(tB, cfg.nB);
-    uint32_t sum = 0;
+    uint32_t sum = 0, sumB = 0;
     for (int i = 0; i < cfg.nA; i++) { ledA[i] = wire(tA[i]); sum += tA[i].r + tA[i].g + tA[i].b; }
-    for (int i = 0; i < cfg.nB; i++) { CRGB c = tB[i]; c.nscale8_video(cfg.trimB * 255 / 100); ledB[i] = wire(c); sum += c.r + c.g + c.b; }
-    showFrame(L.bri, sum);
+    for (int i = 0; i < cfg.nB; i++) { CRGB c = tB[i]; c.nscale8_video(cfg.trimB * 255 / 100); ledB[i] = wire(c); sumB += c.r + c.g + c.b; }
+    showFrame(L.bri, sum, sumB);
     cr = cg = cb = 0; cbri = 0;      // after a test, the colour fades in from black
     return;
   }
@@ -422,8 +428,7 @@ void ledLoop() {
   CRGB c((uint8_t)(cr + .5f), (uint8_t)(cg + .5f), (uint8_t)(cb + .5f));
   CRGB a = wire(c), cB = c; cB.nscale8_video(cfg.trimB * 255 / 100); CRGB bw = wire(cB);
   fill_solid(ledA, cfg.nA, a); if (cfg.nB) fill_solid(ledB, cfg.nB, bw);
-  uint32_t sum = (uint32_t)cfg.nA * (c.r + c.g + c.b) + (uint32_t)cfg.nB * (cB.r + cB.g + cB.b);
-  showFrame(cbri, sum);
+  showFrame(cbri, (uint32_t)cfg.nA * (c.r + c.g + c.b), (uint32_t)cfg.nB * (cB.r + cB.g + cB.b));
   lastShow = now | 1;
   if (moving) delay(15);
 }
@@ -438,10 +443,10 @@ String stateJson() {
   char b[1500];
   snprintf(b, sizeof b,
     "{\"fw\":\"%s\",\"name\":\"%s\",\"host\":\"%s\",\"c\":\"%02x%02x%02x\",\"b\":%d,\"test\":%d,\"fx\":\"%s\",\"m\":%d,\"s\":%d,\"nA\":%d,\"nB\":%d,\"ord\":%d,\"trim\":%d,\"fade\":%d,"
-    "\"lim\":%d,\"pma\":%d,\"ma\":%d,\"cap\":%d,\"stA\":\"%s\",\"stB\":\"%s\",\"bc\":\"%02x%02x%02x\",\"bw\":%d,\"mw\":%d,"
+    "\"lim\":%d,\"limB\":%d,\"pma\":%d,\"ma\":%d,\"maA\":%d,\"maB\":%d,\"cap\":%d,\"stA\":\"%s\",\"stB\":\"%s\",\"bc\":\"%02x%02x%02x\",\"bw\":%d,\"mw\":%d,"
     "\"net\":{\"ssid\":\"%s\",\"up\":%d,\"ip\":\"%s\",\"why\":%d},\"mqtt\":{\"host\":\"%s\",\"port\":%u,\"user\":\"%s\",\"up\":%d}}",
     FW_VERSION, devName.c_str(), HOSTNAME, L.r, L.g, L.b, L.bri, L.test, FXN[fx], L.mode, L.spd, cfg.nA, cfg.nB, cfg.ord, cfg.trimB, cfg.fadeMs,
-    cfg.limMA, cfg.pixMA, (int)estMA, (int)capped, esc(cfg.stepsA).c_str(), esc(cfg.stepsB).c_str(), cfg.br, cfg.bg, cfg.bb, cfg.borderPx, cfg.middlePx,
+    cfg.limMA, cfg.limB, cfg.pixMA, (int)estMA, (int)estA, (int)estB, (int)capped, esc(cfg.stepsA).c_str(), esc(cfg.stepsB).c_str(), cfg.br, cfg.bg, cfg.bb, cfg.borderPx, cfg.middlePx,
     esc(staSsid).c_str(), up, up ? WiFi.localIP().toString().c_str() : "", up ? 0 : staWhy,
     esc(mqttHost).c_str(), mqttPort, esc(mqttUser).c_str(), (int)mqtt.connected());
   return b;
@@ -472,7 +477,7 @@ void setupWeb() {
     auto I = [](const char* k, int d) { return server.hasArg(k) ? (int)server.arg(k).toInt() : d; };
     cfg.nA = constrain(I("nA", cfg.nA), 1, MAX_PIX); cfg.nB = constrain(I("nB", cfg.nB), 0, MAX_PIX);
     cfg.ord = constrain(I("ord", cfg.ord), 0, NORD - 1); cfg.trimB = constrain(I("trim", cfg.trimB), 1, 100);
-    cfg.fadeMs = constrain(I("fade", cfg.fadeMs), 0, 5000); cfg.limMA = constrain(I("lim", cfg.limMA), 0, 200000);
+    cfg.fadeMs = constrain(I("fade", cfg.fadeMs), 0, 5000); cfg.limMA = constrain(I("lim", cfg.limMA), 0, 200000); cfg.limB = constrain(I("limB", cfg.limB), 0, 200000);
     cfg.pixMA = constrain(I("pma", cfg.pixMA), 1, 500);
     if (server.hasArg("stA")) cfg.stepsA = server.arg("stA");
     if (server.hasArg("stB")) cfg.stepsB = server.arg("stB");

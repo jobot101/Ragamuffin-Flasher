@@ -5,7 +5,7 @@
 ## The board (Nov 27 2026)
 - ESP32-S3 DevKit, name `stairs`, on the hall WiFi **Starscraper** at **192.168.1.250**, `http://hall-stairs.local`. 5 V 5 A supply.
 - **GPIO 4:** 1700 px. **GPIO 5:** 2200 px (stairs + landing), level 60 %.
-- Supply limit 4200 mA, 60 mA per pixel → brightness is held down by the limit at these counts.
+- Supplies (Nov 28 2026): upper flight (GPIO 4) on a 5 V 6 A, landing + lower flight (GPIO 5) on a 5 V 5 A, the chip on its own; all grounds tied, + kept separate. Limits: `lim` 5100, `limB` 4250 (85 %). The brightness slider is a share of what the supplies allow (100 % = the most they give), so it always does something.
 
 ## Network
 - Own WiFi **"Stairs"**, open (owner's call), page at 192.168.4.1, captive. Android: tap "Stay connected".
@@ -18,7 +18,7 @@
 - Data: GPIO 4 and GPIO 5 (0 px = off), through a 74AHCT125 + 330 Ω. Colour order is a setting; the stairs strip is **GRB** (set Nov 27 2026 after the measure video showed red/green swapped).
 - ~30 µs per pixel: 1700 px ≈ 20 fps, 2200 ≈ 15 fps. Max 4000 per pin.
 - Pixel count = chips, not LEDs. A count shorter than the strip leaves the rest frozen.
-- 5 V WS2812-class ≈ 60 mA per pixel at full white; set **supply limit mA** ≈ 85 % of the supply.
+- 5 V WS2812-class ≈ 60 mA per pixel at full white; set the **supply limits** ≈ 85 % of each supply (`lim` for GPIO 4, `limB` for GPIO 5 when it has its own).
 
 ## Step map — tuned on the stairs (Nov 28 2026, Runner look perfected by the owner)
 These are the saved maps (also the firmware defaults). Format `start-end/startBorder/endBorder`; gaps between steps are dark loops.
@@ -68,7 +68,7 @@ The far end of GPIO 5 is starved of power: by step 8 the blue ticks were gone an
 **Editing the map:** page → Steps: tap a step and the board lights only it (first pixel green, last red, neighbours dim blue; `/step?stA=…&stB=…&out=A|B&i=N` previews without saving, `/step?done=1` ends). Nudge ±1/±10, then Save (`/cfg?stA=…&stB=…`).
 
 ## Settings (NVS namespace `stairs`)
-`name nA nB ord trim fade lim pma stA stB bcr bcg bcb bw mw r g b bri test mode spd ssid wpass mhost mport muser mpass`. Old boards may still hold `rings`/`sync` from the window firmware; they're ignored.
+`name nA nB ord trim fade lim limB pma stA stB bcr bcg bcb bw mw r g b bri test mode spd ssid wpass mhost mport muser mpass`. Old boards may still hold `rings`/`sync` from the window firmware; they're ignored.
 
 ## Modes (speed 50 = 1×)
 0 solid · 1 pulse + colour · 2 breathe · 3 spin · 4 ripple · 5 glass · 6 candle · 7 christmas · 8 candy cane · 9 snowfall · 10 twinkle · 11 runner (every step: a border at both ends in the border colour, the chosen colour up the middle) · 12 walk up (the side borders stay lit; the middle stripes light step by step from the bottom of GPIO 5 up through the landing and GPIO 4 to the top, holds, clears the same way; speed scales it) · 13 measure GPIO 4 · 14 measure GPIO 5 (a ruler for filming, one output lit: blue dot every 10th pixel; at every 100th a 3-px bar — white <1000, green 1000+, yellow 2000+ — then the hundreds digit as that many red dots; green ×5 at pixel 0, red ×5 at the end). Test (all effects, 8 s each) is separate. Patterns run along GPIO 4; GPIO 5 repeats them.
