@@ -137,19 +137,34 @@ bool applyLookArgs(std::function<bool(const char*)> has, std::function<String(co
 // ---------- config ----------
 // (after struct Look: Arduino puts its prototypes above the first function, so no function may come before the types)
 const int MAX_STEPS = 40;
-int nStA = 0, nStB = 0, stA[MAX_STEPS], stB[MAX_STEPS];
+int nStA = 0, nStB = 0, stA[MAX_STEPS], stB[MAX_STEPS], enA[MAX_STEPS], enB[MAX_STEPS];   // start, end (exclusive)
+int bsA[MAX_STEPS], beA[MAX_STEPS], bsB[MAX_STEPS], beB[MAX_STEPS];                       // border at the start / end, -1 = the global width
 // step editor (page → Steps): light one step so its edges can be nudged; the map isn't saved until /cfg
 volatile uint32_t stepPrevUntil = 0; volatile int prevI = 0; volatile bool prevB = false;
-void parseSteps(const String& s, int* out, int& n, int npix) {
-  n = 0; int v = -1;
-  for (int i = 0; i <= (int)s.length(); i++) {
-    char c = i < (int)s.length() ? s[i] : ',';
-    if (isdigit(c)) v = (v < 0 ? 0 : v * 10) + (c - '0');
-    else if (v >= 0) { if (v < npix && n < MAX_STEPS && (n == 0 || v > out[n - 1])) out[n++] = v; v = -1; }
+// map string: one entry per step, top first, "start-end" (end included) or just "start" (runs to the next step),
+// optionally "/startBorder/endBorder" in pixels (e.g. "138-300/20/12"); without them the global border width is used.
+// Pixels between one step's end and the next step's start stay dark (a loop of strip round a corner).
+void parseSteps(const String& s, int* out, int* outE, int* bS, int* bE, int& n, int npix) {
+  int a[MAX_STEPS], b[MAX_STEPS], ba[MAX_STEPS], bb[MAX_STEPS], m = 0, from = 0;
+  String t = s + ",";
+  for (int i = 0; i < (int)t.length() && m < MAX_STEPS; i++) {
+    if (t[i] != ',') continue;
+    String tok = t.substring(from, i); tok.trim(); from = i + 1;
+    if (!tok.length() || !isdigit(tok[0])) continue;
+    int dash = tok.indexOf('-'), s1 = tok.indexOf('/'), s2 = s1 > 0 ? tok.indexOf('/', s1 + 1) : -1;
+    if (dash > s1 && s1 > 0) dash = -1;
+    a[m] = tok.toInt(); b[m] = dash > 0 ? tok.substring(dash + 1).toInt() + 1 : -1;
+    ba[m] = s1 > 0 ? tok.substring(s1 + 1).toInt() : -1; bb[m] = s2 > 0 ? tok.substring(s2 + 1).toInt() : -1; m++;
   }
-  if (!n && npix > 0) out[n++] = 0;     // no map: the whole output is one step
+  n = 0;
+  for (int k = 0; k < m; k++) {
+    int st = a[k], en = min(b[k] >= 0 ? b[k] : (k + 1 < m ? a[k + 1] : npix), npix);
+    if (st >= npix || en <= st || (n && st < outE[n - 1])) continue;
+    out[n] = st; outE[n] = en; bS[n] = ba[k]; bE[n] = bb[k]; n++;
+  }
+  if (!n && npix > 0) { out[0] = 0; outE[0] = npix; bS[0] = bE[0] = -1; n = 1; }   // no map: the whole output is one step
 }
-void parseAllSteps() { parseSteps(cfg.stepsA, stA, nStA, cfg.nA); parseSteps(cfg.stepsB, stB, nStB, cfg.nB); }
+void parseAllSteps() { parseSteps(cfg.stepsA, stA, enA, bsA, beA, nStA, cfg.nA); parseSteps(cfg.stepsB, stB, enB, bsB, beB, nStB, cfg.nB); }
 
 void loadAll() {
   FlashHold fh; Preferences prefs; prefs.begin("stairs", true);
@@ -250,31 +265,34 @@ void measure(CRGB* l, int n) {
 }
 
 // runner: every step gets a border at both ends (border colour) and a stripe of the chosen colour up the middle.
-void paintStep(CRGB* l, int from, int to, CRGB mid, uint8_t lv) {
+void paintStep(CRGB* l, int from, int to, int bwS, int bwE, CRGB mid, uint8_t lvBorder, uint8_t lvMid) {
   int len = to - from; if (len <= 0) return;
   fill_solid(l + from, len, CRGB::Black);
-  CRGB bc(cfg.br, cfg.bg, cfg.bb); bc.nscale8_video(lv); mid.nscale8_video(lv);
-  int bw = min(cfg.borderPx, len / 2);
-  int m0 = from + bw, m1 = to - bw;
-  if (cfg.middlePx > 0 && cfg.middlePx < m1 - m0) { int c = (from + to) / 2; m0 = c - cfg.middlePx / 2; m1 = m0 + cfg.middlePx; }
-  if (bw > 0) { fill_solid(l + from, bw, bc); fill_solid(l + to - bw, bw, bc); }
+  CRGB bc(cfg.br, cfg.bg, cfg.bb); bc.nscale8_video(lvBorder); mid.nscale8_video(lvMid);
+  if (bwS < 0) bwS = cfg.borderPx; if (bwE < 0) bwE = cfg.borderPx;
+  bwS = min(bwS, len); bwE = min(bwE, len - bwS);
+  int m0 = from + bwS, m1 = to - bwE;
+  if (cfg.middlePx > 0 && cfg.middlePx < m1 - m0) { int c = (m0 + m1) / 2; m0 = c - cfg.middlePx / 2; m1 = m0 + cfg.middlePx; }
+  if (bwS > 0) fill_solid(l + from, bwS, bc);
+  if (bwE > 0) fill_solid(l + to - bwE, bwE, bc);
   if (m1 > m0) fill_solid(l + m0, m1 - m0, mid);
 }
 // steps in walking order: k = 0 is the bottom of GPIO 5 (lower flight), up through the landing, then GPIO 4 bottom to top
 void renderSteps(CRGB mid, uint32_t t, bool walk) {
   const uint32_t STEP = 400, HOLD = 5000, GAP = 1500;           // ms at speed 1x
   int total = nStB + nStA;
+  fill_solid(tA, cfg.nA, CRGB::Black); if (tB) fill_solid(tB, cfg.nB, CRGB::Black);   // gaps between steps stay dark
   uint32_t up = (uint32_t)total * STEP, cycle = up + HOLD + up + GAP, p = t % cycle;
   for (int k = 0; k < total; k++) {
     bool onB = k < nStB;
     int i = onB ? nStB - 1 - k : nStA - 1 - (k - nStB);
-    int* st = onB ? stB : stA; int ns = onB ? nStB : nStA; int npix = onB ? cfg.nB : cfg.nA;
+    int* st = onB ? stB : stA; int* en = onB ? enB : enA; int* bs = onB ? bsB : bsA; int* be = onB ? beB : beA;
     uint8_t lv = 255;
-    if (walk) {                                                  // on one by one going up, hold, off one by one going up
+    if (walk) {                                                  // middles on one by one going up, hold, off one by one going up; borders stay lit
       uint32_t on = k * STEP, off = up + HOLD + k * STEP;
       lv = p < on ? 0 : p < on + STEP ? (p - on) * 255 / STEP : p < off ? 255 : p < off + STEP ? 255 - (p - off) * 255 / STEP : 0;
     }
-    paintStep(onB ? tB : tA, st[i], i + 1 < ns ? st[i + 1] : npix, mid, lv);
+    paintStep(onB ? tB : tA, st[i], en[i], bs[i], be[i], mid, 255, lv);
   }
 }
 
@@ -351,18 +369,21 @@ void ledLoop() {
   Look L = getLook();
   if (lookVer != seen) { seen = lookVer; fr = cr; fg = cg; fb = cb; fbri = cbri; fadeT0 = now; }
 
-  if ((int32_t)(stepPrevUntil - now) > 0) {   // step editor: the chosen step dim white, first pixel green, last red, neighbours dim blue
+  if ((int32_t)(stepPrevUntil - now) > 0) {   // step editor: the chosen step dim white with its borders dim yellow, first pixel green, last red, neighbours dim blue
     fill_solid(ledA, cfg.nA, CRGB::Black); if (ledB) fill_solid(ledB, cfg.nB, CRGB::Black);
-    bool b = prevB; int i = prevI, ns = b ? nStB : nStA, n = b ? cfg.nB : cfg.nA;
-    int* st = b ? stB : stA; CRGB* led = b ? ledB : ledA;
+    bool b = prevB; int i = prevI, ns = b ? nStB : nStA;
+    int* st = b ? stB : stA; int* en = b ? enB : enA; CRGB* led = b ? ledB : ledA;
     uint32_t sum = 0;
     if (led && i >= 0 && i < ns) {
-      auto end = [&](int k) { return k + 1 < ns ? st[k + 1] : n; };
-      if (i > 0) fill_solid(led + st[i - 1], st[i] - st[i - 1], wire(CRGB(0, 0, 40)));
-      if (i + 1 < ns) fill_solid(led + end(i), end(i + 1) - end(i), wire(CRGB(0, 0, 40)));
-      fill_solid(led + st[i], end(i) - st[i], wire(CRGB(50, 50, 50)));
-      led[st[i]] = wire(CRGB(0, 255, 0)); led[end(i) - 1] = wire(CRGB(255, 0, 0));
-      sum = (uint32_t)(end(i) - st[i]) * 150 + 510;
+      if (i > 0) fill_solid(led + st[i - 1], en[i - 1] - st[i - 1], wire(CRGB(0, 0, 40)));
+      if (i + 1 < ns) fill_solid(led + st[i + 1], en[i + 1] - st[i + 1], wire(CRGB(0, 0, 40)));
+      fill_solid(led + st[i], en[i] - st[i], wire(CRGB(50, 50, 50)));
+      int* bs = b ? bsB : bsA; int* be = b ? beB : beA, len = en[i] - st[i];   // borders dim yellow
+      int ws = min(bs[i] < 0 ? cfg.borderPx : bs[i], len), we = min(be[i] < 0 ? cfg.borderPx : be[i], len - ws);
+      if (ws > 0) fill_solid(led + st[i], ws, wire(CRGB(70, 55, 0)));
+      if (we > 0) fill_solid(led + en[i] - we, we, wire(CRGB(70, 55, 0)));
+      led[st[i]] = wire(CRGB(0, 255, 0)); led[en[i] - 1] = wire(CRGB(255, 0, 0));
+      sum = (uint32_t)(en[i] - st[i]) * 150 + 510;
     }
     showFrame(100, sum); wasTest = true; delay(30);
     return;
@@ -471,8 +492,8 @@ void setupWeb() {
     sendState();
   });
   server.on("/step", [] {                  // preview an edited step map without saving: stA, stB, out=A|B, i; done=1 ends it
-    if (server.hasArg("stA")) parseSteps(server.arg("stA"), stA, nStA, cfg.nA);
-    if (server.hasArg("stB")) parseSteps(server.arg("stB"), stB, nStB, cfg.nB);
+    if (server.hasArg("stA")) parseSteps(server.arg("stA"), stA, enA, bsA, beA, nStA, cfg.nA);
+    if (server.hasArg("stB")) parseSteps(server.arg("stB"), stB, enB, bsB, beB, nStB, cfg.nB);
     if (server.hasArg("i")) { prevB = server.arg("out") == "B"; prevI = server.arg("i").toInt(); stepPrevUntil = millis() + 60000; }
     if (server.hasArg("done")) { stepPrevUntil = 0; parseAllSteps(); }   // back to the saved map
     portENTER_CRITICAL(&mux); lookVer++; portEXIT_CRITICAL(&mux);

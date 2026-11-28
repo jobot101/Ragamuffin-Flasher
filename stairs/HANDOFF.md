@@ -57,13 +57,15 @@
 
 The far end of GPIO 5 is starved of power: by step 8 the blue ticks were gone and only red/green showed (voltage drop). Needs power injected at the bottom of the lower flight.
 
+**Map format:** `start-end` per step (end included), top step first, optionally `/startBorder/endBorder` in pixels (e.g. `138-300/20/12`; -1 or missing = the global border width); a plain `start` runs to the next step. Pixels between one step's end and the next step's start stay dark (a loop of strip round a corner).
+
 **Editing the map:** page → Steps: tap a step and the board lights only it (first pixel green, last red, neighbours dim blue; `/step?stA=…&stB=…&out=A|B&i=N` previews without saving, `/step?done=1` ends). Nudge ±1/±10, then Save (`/cfg?stA=…&stB=…`).
 
 ## Settings (NVS namespace `stairs`)
 `name nA nB ord trim fade lim pma stA stB bcr bcg bcb bw mw r g b bri test mode spd ssid wpass mhost mport muser mpass`. Old boards may still hold `rings`/`sync` from the window firmware; they're ignored.
 
 ## Modes (speed 50 = 1×)
-0 solid · 1 pulse + colour · 2 breathe · 3 spin · 4 ripple · 5 glass · 6 candle · 7 christmas · 8 candy cane · 9 snowfall · 10 twinkle · 11 runner (every step: a border at both ends in the border colour, the chosen colour up the middle) · 12 walk up (the runner lights step by step from the bottom of GPIO 5 up through the landing and GPIO 4 to the top, holds, clears the same way; speed scales it) · 13 measure GPIO 4 · 14 measure GPIO 5 (a ruler for filming, one output lit: blue dot every 10th pixel; at every 100th a 3-px bar — white <1000, green 1000+, yellow 2000+ — then the hundreds digit as that many red dots; green ×5 at pixel 0, red ×5 at the end). Test (all effects, 8 s each) is separate. Patterns run along GPIO 4; GPIO 5 repeats them.
+0 solid · 1 pulse + colour · 2 breathe · 3 spin · 4 ripple · 5 glass · 6 candle · 7 christmas · 8 candy cane · 9 snowfall · 10 twinkle · 11 runner (every step: a border at both ends in the border colour, the chosen colour up the middle) · 12 walk up (the side borders stay lit; the middle stripes light step by step from the bottom of GPIO 5 up through the landing and GPIO 4 to the top, holds, clears the same way; speed scales it) · 13 measure GPIO 4 · 14 measure GPIO 5 (a ruler for filming, one output lit: blue dot every 10th pixel; at every 100th a 3-px bar — white <1000, green 1000+, yellow 2000+ — then the hundreds digit as that many red dots; green ×5 at pixel 0, red ×5 at the end). Test (all effects, 8 s each) is separate. Patterns run along GPIO 4; GPIO 5 repeats them.
 
 ## Code shape
 - Core 1 = `loop()` → `ledLoop()` (LEDs only). Core 0 = `netTask` (WiFi, web, MQTT, NVS saves, OTA).

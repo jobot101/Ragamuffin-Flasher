@@ -132,47 +132,64 @@ function Strip({ st, show }) {
 // Steps: tap a step and the board lights only it (green = its first pixel, red = its last, neighbours dim blue).
 // Nudge the edges and watch the stairs; nothing is kept until Save.
 const OUTS = { A: { label: 'Upper flight (GPIO 4)', n: 'nA', key: 'stA' }, B: { label: 'Landing + lower flight (GPIO 5)', n: 'nB', key: 'stB' } }
-const toList = s => (s || '').split(',').map(x => parseInt(x)).filter(x => x >= 0)
+// map string: "start-end/startBorder/endBorder" per step (end included), top first; a plain "start" runs to the
+// next step; no borders = the global border width (-1 here)
+const toList = (str, n) => {
+  const t = (str || '').split(',').map(x => x.trim()).filter(x => /^\d/.test(x)).map(x => {
+    const [range, bs, be] = x.split('/'), [s, e] = range.split('-').map(Number)
+    return { s, e, bs: bs ? +bs : -1, be: be ? +be : -1 }
+  })
+  return t.map((x, i) => ({ ...x, e: x.e >= 0 ? x.e : (i + 1 < t.length ? t[i + 1].s : n) - 1 }))
+}
+const toStr = l => l.map(x => x.s + '-' + x.e + (x.bs >= 0 || x.be >= 0 ? '/' + x.bs + '/' + x.be : '')).join(',')
 
 function Steps({ st, show }) {
-  const [map, setMap] = useState(() => ({ A: toList(st.stA), B: toList(st.stB) }))
+  const [map, setMap] = useState(() => ({ A: toList(st.stA, st.nA), B: toList(st.stB, st.nB) }))
   const [out, setOut] = useState('A')
   const [sel, setSel] = useState(null)
   const [msg, setMsg] = useState('')
   const timer = useRef(0)
   const list = map[out], n = st[OUTS[out].n]
-  const end = i => (i + 1 < list.length ? list[i + 1] : n) - 1
   const name = i => out === 'B' && i === 0 ? 'Landing walls' : 'Step ' + (out === 'B' ? i : i + 1)
 
   const preview = (m, o, i) => {   // send the edited map + which step to light, a moment after the last tap
     clearTimeout(timer.current)
-    timer.current = setTimeout(() => getJ('/step?' + qs({ stA: m.A.join(','), stB: m.B.join(','), out: o, i })).then(show).catch(() => {}), 120)
+    timer.current = setTimeout(() => getJ('/step?' + qs({ stA: toStr(m.A), stB: toStr(m.B), out: o, i })).then(show).catch(() => {}), 120)
   }
   const pick = i => { setSel(i); preview(map, out, i) }
-  const move = (k, d) => {          // move the boundary at list[k] (k > 0) by d, keeping every step at least 1 pixel
-    const l = [...list], lo = l[k - 1] + 1, hi = (k + 1 < l.length ? l[k + 1] : n) - 1
-    l[k] = Math.min(hi, Math.max(lo, l[k] + d))
+  // start can go from the previous step's end + 1 to this step's end; end from this start to the next step's start - 1
+  const move = (i, edge, d) => {
+    const l = list.map(x => ({ ...x })), x = l[i]
+    const bw = v => (v < 0 ? st.bw : v)
+    if (edge === 'bs') x.bs = Math.max(0, Math.min(x.e - x.s + 1, bw(x.bs) + d))
+    else if (edge === 'be') x.be = Math.max(0, Math.min(x.e - x.s + 1, bw(x.be) + d))
+    else if (edge === 's') x.s = Math.min(x.e, Math.max(i ? l[i - 1].e + 1 : 0, x.s + d))
+    else x.e = Math.max(x.s, Math.min(i + 1 < l.length ? l[i + 1].s - 1 : n - 1, x.e + d))
     const m = { ...map, [out]: l }; setMap(m); setMsg('not saved'); preview(m, out, sel)
   }
-  const save = () => getJ('/cfg?' + qs({ stA: map.A.join(','), stB: map.B.join(',') }))
+  const save = () => getJ('/cfg?' + qs({ stA: toStr(map.A), stB: toStr(map.B) }))
     .then(j => { setMsg(j.err || 'Saved ✓'); show(j) }).catch(() => setMsg('no reply'))
   const done = () => { setSel(null); getJ('/step?done=1').then(show) }
-  const Nudge = ({ k }) => <div className="row" style={{ marginTop: 4 }}>
-    {[-10, -1, 1, 10].map(d => <button key={d} onClick={() => move(k, d)}>{d > 0 ? '+' + d : d}</button>)}</div>
+  const Nudge = ({ i, edge }) => <div className="row" style={{ marginTop: 4 }}>
+    {[-10, -1, 1, 10].map(d => <button key={d} onClick={() => move(i, edge, d)}>{d > 0 ? '+' + d : d}</button>)}</div>
+  const gap = i => i + 1 < list.length ? list[i + 1].s - list[i].e - 1 : 0
 
   return <div className="card"><h2>Steps <small>tap one, nudge its edges, Save</small></h2>
     <div className="row">{Object.keys(OUTS).map(o =>
       <button key={o} className={o === out ? 'on' : ''} onClick={() => { setOut(o); setSel(null) }}>{OUTS[o].label}</button>)}</div>
-    {list.map((from, i) => <div key={i}>
+    {list.map((x, i) => <div key={i}>
       <div className="row"><button className={i === sel ? 'on' : ''} onClick={() => pick(i)} style={{ textAlign: 'left' }}>
-        {name(i)} · {from}–{end(i)} <small>({end(i) - from + 1} px)</small></button></div>
+        {name(i)} · {x.s}–{x.e} <small>({x.e - x.s + 1} px)</small></button></div>
       {i === sel && <>
-        {i > 0 && <p className="hint">Start (green): <b>{from}</b></p>}{i > 0 && <Nudge k={i} />}
-        {i + 1 < list.length && <><p className="hint">End (red): <b>{end(i)}</b></p><Nudge k={i + 1} /></>}
+        <p className="hint">Start (green): <b>{x.s}</b></p><Nudge i={i} edge="s" />
+        <p className="hint">End (red): <b>{x.e}</b></p><Nudge i={i} edge="e" />
+        <p className="hint">Border at the green end: <b>{x.bs < 0 ? st.bw + ' (default)' : x.bs}</b> px</p><Nudge i={i} edge="bs" />
+        <p className="hint">Border at the red end: <b>{x.be < 0 ? st.bw + ' (default)' : x.be}</b> px</p><Nudge i={i} edge="be" />
       </>}
+      {gap(i) > 0 && <p className="hint" style={{ margin: '2px 0 0 10px' }}>↳ {gap(i)} px dark (loop / corner)</p>}
     </div>)}
     <div className="row"><button onClick={save}>Save</button><button onClick={done}>Done</button></div>
-    <p className="hint">Top step first. Move green onto the first lit pixel at one end of the step and red onto the last at the other end; moving an edge also moves the step next to it. Done goes back to the lights; Save keeps the map.</p>
+    <p className="hint">Top step first. The lit step shows its borders dim yellow. Move green onto the first pixel you want lit at one end of the step and red onto the last at the other end. Anything between one step's red and the next step's green stays dark, for a loop of strip round a corner. Done goes back to the lights; Save keeps the map.</p>
     <p className="hint">{msg}</p>
   </div>
 }
