@@ -79,6 +79,7 @@ export default function App() {
         {st.cap ? <span className="warn"> · 100 % = the most the supplies allow</span> : null}</> : '…')}</div>
     </div>
 
+    {st && <Night st={st} show={show} />}
     {st && <Steps st={st} show={show} />}
     {st && <Strip st={st} show={show} />}
     {!wifiFirst.current && wifi}
@@ -126,6 +127,37 @@ function Strip({ st, show }) {
       Pixels = chips, not LEDs: WS2811 neon often has 3 LEDs per chip. Changing a pixel count restarts the board.
       Colour order: pick Test, then tap Red — if the strip shows green or blue, try the next order.
       mA per pixel = reel W/m ÷ volts ÷ pixels per metre × 1000 (WS2812B 5 V ≈ 60).</p>
+    <p className="hint">{msg}</p>
+  </div>
+}
+
+// Night: between two times only the step borders glow (a dim outline); Light the stairs walks the middles up,
+// holds them, then lets them go back to the outline. The board takes the time from the internet.
+const hhmm = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0')
+const mins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+
+function Night({ st, show }) {
+  const n = st.night || {}
+  const [f, setF] = useState({ on: n.on ? 1 : 0, from: hhmm(n.from ?? 1320), to: hhmm(n.to ?? 390), lv: n.lv ?? 8, wake: n.wake ?? 60, tz: n.tz || '' })
+  const [msg, setMsg] = useState('')
+  const set = k => e => setF({ ...f, [k]: e.target.value })
+  const save = on => {
+    const o = { ...f, on: on ?? f.on }; setF(o)
+    getJ('/cfg?' + qs({ nOn: o.on, nFr: mins(o.from), nTo: mins(o.to), nLv: o.lv, nWk: o.wake, tz: o.tz }))
+      .then(j => { setMsg(j.err || 'Saved ✓'); show(j) }).catch(() => setMsg('no reply'))
+  }
+  const clock = n.now >= 0 ? 'board clock ' + hhmm(n.now) : 'board clock not set yet (needs the hall WiFi)'
+  return <div className="card"><h2>Night <small>{n.on ? (n.active ? (n.lit ? 'night · lit' : 'night · outline') : 'on, waiting for ' + hhmm(n.from)) : 'off'}</small></h2>
+    <div className="row"><button className={n.lit ? 'on' : ''} onClick={() => getJ('/wake').then(show)}>Light the stairs</button></div>
+    <div className="row"><button className={f.on ? 'on' : ''} onClick={() => save(f.on ? 0 : 1)}>{f.on ? 'Night mode on' : 'Night mode off'}</button></div>
+    <Field label="from"><input type="time" value={f.from} onChange={set('from')} /></Field>
+    <Field label="to"><input type="time" value={f.to} onChange={set('to')} /></Field>
+    <div className="bri"><span>Outline</span><b>{f.lv} %</b></div>
+    <input type="range" min="1" max="40" value={f.lv} onChange={set('lv')} />
+    <Field label="stays lit (seconds)"><input type="number" min="5" max="3600" value={f.wake} onChange={set('wake')} /></Field>
+    <Field label="time zone"><input value={f.tz} onChange={set('tz')} /></Field>
+    <div className="row"><button onClick={() => save()}>Save</button></div>
+    <p className="hint">{clock}. At night only the step borders glow, at the Outline share of the brightness; Light the stairs walks the middles up, holds them, then lets them go back. The time zone is a POSIX string: EST5EDT,M3.2.0,M11.1.0 is Pennsylvania.</p>
     <p className="hint">{msg}</p>
   </div>
 }

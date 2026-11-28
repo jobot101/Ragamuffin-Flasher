@@ -17,6 +17,7 @@
 // Core split: core 1 = the LEDs (loop). core 0 = WiFi, web, MQTT, updates (netTask). LEDs hold still during an update.
 
 #include <WiFi.h>
+#include <time.h>
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <ESPmDNS.h>
@@ -56,6 +57,12 @@ struct Cfg {
   uint8_t br = 255, bg = 0, bb = 255;   // border colour (magenta, as tuned)
   int borderPx = 15;                    // border at each end of a step
   int middlePx = 0;                     // middle stripe width, 0 = everything between the borders
+  // night mode: between nightFrom and nightTo (minutes after midnight, local time from the internet) only the
+  // borders glow, at nightLv % of the brightness; "wake" (page button or serial w, later a touch plate or sensor)
+  // walks the middles up to full, holds nightWake seconds, then lets them go back to the outline.
+  bool nightOn = false;
+  int nightFrom = 22 * 60, nightTo = 6 * 60 + 30, nightLv = 8, nightWake = 60;
+  String tz = "EST5EDT,M3.2.0,M11.1.0";   // POSIX time zone: Pennsylvania
 } cfg;
 const char* ORDERS[] = {"GRB", "RGB", "BRG", "RBG", "GBR", "BGR"};
 const int NORD = 6;
@@ -176,6 +183,8 @@ void loadAll() {
   cfg.stepsA = prefs.getString("stA", cfg.stepsA); cfg.stepsB = prefs.getString("stB", cfg.stepsB);
   cfg.br = prefs.getUChar("bcr", cfg.br); cfg.bg = prefs.getUChar("bcg", cfg.bg); cfg.bb = prefs.getUChar("bcb", cfg.bb);
   cfg.borderPx = prefs.getInt("bw", cfg.borderPx); cfg.middlePx = prefs.getInt("mw", cfg.middlePx);
+  cfg.nightOn = prefs.getBool("nOn", cfg.nightOn); cfg.nightFrom = prefs.getInt("nFr", cfg.nightFrom); cfg.nightTo = prefs.getInt("nTo", cfg.nightTo);
+  cfg.nightLv = prefs.getInt("nLv", cfg.nightLv); cfg.nightWake = prefs.getInt("nWk", cfg.nightWake); cfg.tz = prefs.getString("tz", cfg.tz);
   look.r = prefs.getUChar("r", look.r); look.g = prefs.getUChar("g", look.g); look.b = prefs.getUChar("b", look.b);
   look.bri = prefs.getInt("bri", look.bri); look.test = prefs.getBool("test", look.test);
   look.mode = constrain((int)prefs.getInt("mode", 0), 0, NMODES - 1); look.spd = constrain((int)prefs.getInt("spd", 50), 1, 100);
@@ -194,6 +203,8 @@ void saveCfg() {
   prefs.putString("stA", cfg.stepsA); prefs.putString("stB", cfg.stepsB);
   prefs.putUChar("bcr", cfg.br); prefs.putUChar("bcg", cfg.bg); prefs.putUChar("bcb", cfg.bb);
   prefs.putInt("bw", cfg.borderPx); prefs.putInt("mw", cfg.middlePx);
+  prefs.putBool("nOn", cfg.nightOn); prefs.putInt("nFr", cfg.nightFrom); prefs.putInt("nTo", cfg.nightTo);
+  prefs.putInt("nLv", cfg.nightLv); prefs.putInt("nWk", cfg.nightWake); prefs.putString("tz", cfg.tz);
   prefs.end();
 }
 void saveLook() {
@@ -302,6 +313,37 @@ void renderSteps(CRGB mid, uint32_t t, bool walk) {
   }
 }
 
+// ---------- night mode ----------
+volatile uint32_t wakeAt = 0;            // millis() of the last wake, 0 = none
+void wakeStairs() { wakeAt = millis() | 1; }
+int localMinutes() {                     // minutes after midnight, -1 until the clock is set from the internet
+  time_t t = time(nullptr); if (t < 1700000000) return -1;
+  struct tm lt; localtime_r(&t, &lt); return lt.tm_hour * 60 + lt.tm_min;
+}
+bool nightNow() {
+  if (!cfg.nightOn) return false;
+  int m = localMinutes(); if (m < 0) return false;
+  return cfg.nightFrom <= cfg.nightTo ? (m >= cfg.nightFrom && m < cfg.nightTo) : (m >= cfg.nightFrom || m < cfg.nightTo);
+}
+// the outline: every step's borders at nightLv %; after a wake the middles walk up (and the borders come up with them),
+// hold, then walk back down to the outline in the same order
+void renderNight(CRGB mid, uint32_t now) {
+  const uint32_t STEP = 250;
+  int total = nStB + nStA;
+  fill_solid(tA, cfg.nA, CRGB::Black); if (tB) fill_solid(tB, cfg.nB, CRGB::Black);
+  uint32_t up = (uint32_t)total * STEP, hold = (uint32_t)cfg.nightWake * 1000, d = wakeAt ? now - wakeAt : 0xFFFFFFFF;
+  uint8_t outline = cfg.nightLv * 255 / 100;
+  for (int k = 0; k < total; k++) {
+    bool onB = k < nStB;
+    int i = onB ? nStB - 1 - k : nStA - 1 - (k - nStB);
+    int* st = onB ? stB : stA; int* en = onB ? enB : enA; int* bs = onB ? bsB : bsA; int* be = onB ? beB : beA;
+    uint32_t on = k * STEP, off = up + hold + k * STEP;
+    uint8_t lv = d < on ? 0 : d < on + STEP ? (d - on) * 255 / STEP : d < off ? 255 : d < off + STEP ? 255 - (d - off) * 255 / STEP : 0;
+    paintStep(onB ? tB : tA, st[i], en[i], bs[i], be[i], mid, max(outline, lv), lv);
+  }
+  if (wakeAt && d > up + hold + up + STEP) wakeAt = 0;
+}
+
 void renderMode(const Look& L, uint32_t ms) {
   if (L.mode >= 13) {                           // measure: one output's ruler, the other dark
     fill_solid(tA, cfg.nA, CRGB::Black); fill_solid(tB, cfg.nB, CRGB::Black);
@@ -395,6 +437,15 @@ void ledLoop() {
     return;
   }
 
+  if (!L.test && nightNow()) {                // night: the outline, the middles only after a wake
+    renderNight(CRGB(L.r, L.g, L.b), now);
+    uint32_t sum = 0, sumB = 0;
+    for (int i = 0; i < cfg.nA; i++) { ledA[i] = wire(tA[i]); sum += tA[i].r + tA[i].g + tA[i].b; }
+    for (int i = 0; i < cfg.nB; i++) { CRGB c = tB[i]; c.nscale8_video(cfg.trimB * 255 / 100); ledB[i] = wire(c); sumB += c.r + c.g + c.b; }
+    showFrame(L.bri, sum, sumB); wasTest = true; delay(8);
+    cr = cg = cb = 0; cbri = 0;
+    return;
+  }
   if (!L.test && L.mode > 0) {                // an animated mode
     renderMode(L, now);
     uint32_t sum = 0, sumB = 0;
@@ -440,13 +491,15 @@ void ledLoop() {
 String stateJson() {
   Look L = getLook();
   bool up = WiFi.status() == WL_CONNECTED;
-  char b[1500];
+  char b[1800];
   snprintf(b, sizeof b,
     "{\"fw\":\"%s\",\"name\":\"%s\",\"host\":\"%s\",\"c\":\"%02x%02x%02x\",\"b\":%d,\"test\":%d,\"fx\":\"%s\",\"m\":%d,\"s\":%d,\"nA\":%d,\"nB\":%d,\"ord\":%d,\"trim\":%d,\"fade\":%d,"
     "\"lim\":%d,\"limB\":%d,\"pma\":%d,\"ma\":%d,\"maA\":%d,\"maB\":%d,\"cap\":%d,\"stA\":\"%s\",\"stB\":\"%s\",\"bc\":\"%02x%02x%02x\",\"bw\":%d,\"mw\":%d,"
+    "\"night\":{\"on\":%d,\"from\":%d,\"to\":%d,\"lv\":%d,\"wake\":%d,\"tz\":\"%s\",\"now\":%d,\"active\":%d,\"lit\":%d},"
     "\"net\":{\"ssid\":\"%s\",\"up\":%d,\"ip\":\"%s\",\"why\":%d},\"mqtt\":{\"host\":\"%s\",\"port\":%u,\"user\":\"%s\",\"up\":%d}}",
     FW_VERSION, devName.c_str(), HOSTNAME, L.r, L.g, L.b, L.bri, L.test, FXN[fx], L.mode, L.spd, cfg.nA, cfg.nB, cfg.ord, cfg.trimB, cfg.fadeMs,
     cfg.limMA, cfg.limB, cfg.pixMA, (int)estMA, (int)estA, (int)estB, (int)capped, esc(cfg.stepsA).c_str(), esc(cfg.stepsB).c_str(), cfg.br, cfg.bg, cfg.bb, cfg.borderPx, cfg.middlePx,
+    (int)cfg.nightOn, cfg.nightFrom, cfg.nightTo, cfg.nightLv, cfg.nightWake, esc(cfg.tz).c_str(), localMinutes(), (int)nightNow(), (int)(wakeAt != 0 && nightNow()),
     esc(staSsid).c_str(), up, up ? WiFi.localIP().toString().c_str() : "", up ? 0 : staWhy,
     esc(mqttHost).c_str(), mqttPort, esc(mqttUser).c_str(), (int)mqtt.connected());
   return b;
@@ -483,6 +536,10 @@ void setupWeb() {
     if (server.hasArg("stB")) cfg.stepsB = server.arg("stB");
     if (server.hasArg("bc")) { uint8_t r, g, b; if (parseHex(server.arg("bc"), r, g, b)) { cfg.br = r; cfg.bg = g; cfg.bb = b; } }
     cfg.borderPx = constrain(I("bw", cfg.borderPx), 0, 500); cfg.middlePx = constrain(I("mw", cfg.middlePx), 0, 2000);
+    if (server.hasArg("nOn")) cfg.nightOn = server.arg("nOn").toInt();
+    cfg.nightFrom = constrain(I("nFr", cfg.nightFrom), 0, 1439); cfg.nightTo = constrain(I("nTo", cfg.nightTo), 0, 1439);
+    cfg.nightLv = constrain(I("nLv", cfg.nightLv), 0, 100); cfg.nightWake = constrain(I("nWk", cfg.nightWake), 5, 3600);
+    if (server.hasArg("tz") && server.arg("tz").length()) { cfg.tz = server.arg("tz"); setenv("TZ", cfg.tz.c_str(), 1); tzset(); }
     parseAllSteps();
     saveCfg();
     portENTER_CRITICAL(&mux); lookVer++; portEXIT_CRITICAL(&mux);   // redraw with the new order / level
@@ -535,6 +592,7 @@ void setupWeb() {
     mqtt.setServer(mqttHost.c_str(), mqttPort);   // PubSubClient keeps the pointer: mqttHost is global
     sendState();
   });
+  server.on("/wake", [] { wakeStairs(); sendState(); });   // light the stairs (night mode)
   server.on("/restart", [] { server.send(200, "text/plain", "restarting"); delay(300); ESP.restart(); });
   server.on("/update", HTTP_POST, [] {
     bool ok = !Update.hasError();
@@ -607,6 +665,8 @@ void netTask(void*) {
     if (lookDirtyAt && ms - lookDirtyAt > 2000 && !updating) { lookDirtyAt = 0; saveLook(); }
 
     bool up = WiFi.status() == WL_CONNECTED;
+    static bool clockAsked = false;   // the time, for night mode, from the internet once on the hall WiFi
+    if (up && !clockAsked) { clockAsked = true; configTzTime(cfg.tz.c_str(), "pool.ntp.org", "time.google.com"); }
     if (!up || !mqttHost.length() || updating) { if (mqtt.connected()) mqtt.disconnect(); }
     else if (!mqtt.connected()) {
       if (ms - lastTry > 5000) {
@@ -658,9 +718,10 @@ void serialCmd(Stream& S, String& line) {
       if (c == 'c') { uint8_t r, g, b; if (parseHex(a, r, g, b)) { L.r = r; L.g = g; L.b = b; L.test = false; setLook(L); } else S.println("c<rrggbb>"); }
       else if (c == 'b') { L.bri = a.toInt(); setLook(L); }
       else if (c == 't') { L.test = !L.test; setLook(L); }
+      else if (c == 'w') { wakeStairs(); }
       else if (c == 'n') { cfg.nA = constrain((int)a.toInt(), 1, MAX_PIX); saveCfg(); S.println("restarting"); delay(200); ESP.restart(); }
       S.println(stateJson());
-      if (c == '?' || c == 'h') S.println("c<rrggbb> colour · b<0-100> brightness · t test · n<pixels> GPIO 4 count · wifi<TAB>ssid<TAB>pass · scan · ? state");
+      if (c == '?' || c == 'h') S.println("c<rrggbb> colour · b<0-100> brightness · t test · w wake (night) · n<pixels> GPIO 4 count · wifi<TAB>ssid<TAB>pass · scan · ? state");
     }
     line = "";
   }
