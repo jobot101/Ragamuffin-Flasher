@@ -8,7 +8,7 @@ const ORD = ['GRB', 'RGB', 'BRG', 'RBG', 'GBR', 'BGR']
 const COLOURS = [['Warm', 'ff9329'], ['Candle', 'ff6a10'], ['White', 'ffd9b0'], ['Day', 'ffffff'], ['Red', 'c62b29'], ['Yellow', 'fdcd09'],
   ['Green', '8dad3e'], ['Blue', '60b6e5'], ['Show', '0a2a8a'], ['Purple', '7a2cff'], ['Pink', 'ff3c8a'], ['Teal', '00c0a0']]
 const MODES = [['Solid', '■'], ['Pulse + colour', '◐'], ['Breathe', '○'], ['Spin', '◎'], ['Ripple', '≋'], ['Glass', '✦'], ['Candle', '♨'],
-  ['Christmas', '🎄'], ['Candy cane', '🍬'], ['Snowfall', '❄'], ['Twinkle', '✧'], ['Runner', '▥'], ['Walk up', '⤴'], ['Measure GPIO 4', '📏'], ['Measure GPIO 5', '📐']]
+  ['Christmas', '🎄'], ['Candy cane', '🍬'], ['Snowfall', '❄'], ['Twinkle', '✧'], ['Runner', '▥'], ['Walk up', '⤴']]
 const WHY = { 2: 'auth expired', 15: 'wrong password', 201: 'not found (2.4 GHz only)', 202: 'wrong password', 203: 'refused', 204: 'wrong password', 205: 'refused' }
 const STRIP = ['nA', 'nB', 'ord', 'trim', 'fade', 'lim', 'limB', 'pma', 'name', 'bc', 'bw', 'mw']
 
@@ -80,7 +80,6 @@ export default function App() {
     </div>
 
     {st && <Night st={st} show={show} />}
-    {st && <Steps st={st} show={show} />}
     {st && <Strip st={st} show={show} />}
     {!wifiFirst.current && wifi}
     {st && <Mqtt st={st} go={go} />}
@@ -122,7 +121,7 @@ function Strip({ st, show }) {
     <Field label="border pixels each side">{num('bw', 0, 500)}</Field>
     <Field label="middle stripe pixels">{num('mw', 0, 2000, '0 = fill')}</Field>
     <div className="row"><button onClick={save}>Save</button></div>
-    <p className="hint">Runner and Walk up use the Light colour for the middle stripe. Step edges are set in Steps above.</p>
+    <p className="hint">Runner and Walk up use the Light colour for the middle stripe. The step map was set when the stairs were measured (stairs/HANDOFF.md).</p>
     <p className="hint">Board name → hall-NAME.local and its own WiFi; changing it restarts the board.
       Pixels = chips, not LEDs: WS2811 neon often has 3 LEDs per chip. Changing a pixel count restarts the board.
       Colour order: pick Test, then tap Red — if the strip shows green or blue, try the next order.
@@ -162,76 +161,6 @@ function Night({ st, show }) {
   </div>
 }
 
-// Steps: tap a step and the board lights only it (green = its first pixel, red = its last, neighbours dim blue).
-// Slide its start, size and borders and watch the stairs; nothing is kept until Save.
-const OUTS = { A: { label: 'Upper flight (GPIO 4)', n: 'nA', key: 'stA' }, B: { label: 'Landing + lower flight (GPIO 5)', n: 'nB', key: 'stB' } }
-// map string: "start-end/startBorder/endBorder" per step (end included), top first; a plain "start" runs to the
-// next step; no borders = the global border width (-1 here)
-const toList = (str, n) => {
-  const t = (str || '').split(',').map(x => x.trim()).filter(x => /^\d/.test(x)).map(x => {
-    const [range, bs, be] = x.split('/'), [s, e] = range.split('-').map(Number)
-    return { s, e, bs: bs ? +bs : -1, be: be ? +be : -1 }
-  })
-  return t.map((x, i) => ({ ...x, e: x.e >= 0 ? x.e : (i + 1 < t.length ? t[i + 1].s : n) - 1 }))
-}
-const toStr = l => l.map(x => x.s + '-' + x.e + (x.bs >= 0 || x.be >= 0 ? '/' + x.bs + '/' + x.be : '')).join(',')
-
-function Steps({ st, show }) {
-  const [map, setMap] = useState(() => ({ A: toList(st.stA, st.nA), B: toList(st.stB, st.nB) }))
-  const [out, setOut] = useState('A')
-  const [sel, setSel] = useState(null)
-  const [msg, setMsg] = useState('')
-  const timer = useRef(0)
-  const list = map[out], n = st[OUTS[out].n]
-  const name = i => out === 'B' && i === 0 ? 'Landing walls' : 'Step ' + (out === 'B' ? i : i + 1)
-
-  const preview = (m, o, i) => {   // send the edited map + which step to light, a moment after the last tap
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => getJ('/step?' + qs({ stA: toStr(m.A), stB: toStr(m.B), out: o, i })).then(show).catch(() => {}), 120)
-  }
-  const pick = i => { setSel(i); preview(map, out, i) }
-  // set one value of step i, kept inside its neighbours: start / size / border at the green end / border at the red end
-  const bw = v => (v < 0 ? st.bw : v)
-  const lo = i => (i ? list[i - 1].e + 1 : 0), hi = i => (i + 1 < list.length ? list[i + 1].s - 1 : n - 1)
-  const setVal = (i, key, v) => {
-    const l = list.map(x => ({ ...x })), x = l[i], clamp = (a, b) => Math.max(a, Math.min(b, v))
-    if (key === 's') x.s = clamp(lo(i), x.e)
-    else if (key === 'size') x.e = x.s + clamp(1, hi(i) - x.s + 1) - 1
-    else x[key] = clamp(0, x.e - x.s + 1)
-    const m = { ...map, [out]: l }; setMap(m); setMsg('not saved'); preview(m, out, i)
-  }
-  const save = () => getJ('/cfg?' + qs({ stA: toStr(map.A), stB: toStr(map.B) }))
-    .then(j => { setMsg(j.err || 'Saved ✓'); show(j) }).catch(() => setMsg('no reply'))
-  const done = () => { setSel(null); getJ('/step?done=1').then(show) }
-  // a plain function, not a component, so React keeps the same slider while it's dragged
-  const ctl = (i, k, label, v, min, max) => <div key={k} style={{ marginTop: 8 }}>
-    <div className="bri" style={{ margin: 0 }}><span>{label}</span><b style={{ fontSize: 20 }}>{v}</b></div>
-    <input type="range" min={min} max={max} value={v} onChange={e => setVal(i, k, +e.target.value)} />
-    <div className="row" style={{ marginTop: 2 }}>{[-10, -1, 1, 10].map(d =>
-      <button key={d} style={{ padding: '6px 2px' }} onClick={() => setVal(i, k, v + d)}>{d > 0 ? '+' + d : d}</button>)}</div>
-  </div>
-  const gap = i => i + 1 < list.length ? list[i + 1].s - list[i].e - 1 : 0
-
-  return <div className="card"><h2>Steps <small>tap one, nudge its edges, Save</small></h2>
-    <div className="row">{Object.keys(OUTS).map(o =>
-      <button key={o} className={o === out ? 'on' : ''} onClick={() => { setOut(o); setSel(null) }}>{OUTS[o].label}</button>)}</div>
-    {list.map((x, i) => <div key={i}>
-      <div className="row"><button className={i === sel ? 'on' : ''} onClick={() => pick(i)} style={{ textAlign: 'left' }}>
-        {name(i)} · {x.s}–{x.e} <small>({x.e - x.s + 1} px)</small></button></div>
-      {i === sel && <>
-        {ctl(i, 's', 'Start (green)', x.s, lo(i), x.e)}
-        {ctl(i, 'size', `Size (red at ${x.e})`, x.e - x.s + 1, 1, hi(i) - x.s + 1)}
-        {ctl(i, 'bs', 'Border at the green end', bw(x.bs), 0, Math.min(80, x.e - x.s + 1))}
-        {ctl(i, 'be', 'Border at the red end', bw(x.be), 0, Math.min(80, x.e - x.s + 1))}
-      </>}
-      {gap(i) > 0 && <p className="hint" style={{ margin: '2px 0 0 10px' }}>↳ {gap(i)} px dark (loop / corner)</p>}
-    </div>)}
-    <div className="row"><button onClick={save}>Save</button><button onClick={done}>Done</button></div>
-    <p className="hint">Top step first. The lit step shows its borders dim yellow. Move green onto the first pixel you want lit at one end of the step and red onto the last at the other end. Anything between one step's red and the next step's green stays dark, for a loop of strip round a corner. Done goes back to the lights; Save keeps the map.</p>
-    <p className="hint">{msg}</p>
-  </div>
-}
-
 function Wifi({ st, go }) {
   const n = st.net || {}
   const [ssid, setSsid] = useState(n.ssid || HALL)
@@ -265,7 +194,7 @@ function Mqtt({ st, go }) {
     <Field label="user"><input value={f.user} onChange={set('user')} /></Field>
     <Field label="password"><input type="password" placeholder="unchanged" value={f.pass} onChange={set('pass')} /></Field>
     <div className="row"><button onClick={save}>Save</button></div>
-    <p className="hint">Send to <b>ragamuffin/hall/{st.name}/set</b>: <code>c=ff9329&amp;b=30</code> · <code>m=1&amp;s=40</code> (mode 0–14, speed 1–100) · <code>b=0</code> · <code>test=1</code>. State is on <b>…/state</b>.</p>
+    <p className="hint">Send to <b>ragamuffin/hall/{st.name}/set</b>: <code>c=ff9329&amp;b=30</code> · <code>m=1&amp;s=40</code> (mode 0–12, speed 1–100) · <code>b=0</code> · <code>test=1</code>. State is on <b>…/state</b>.</p>
   </div>
 }
 

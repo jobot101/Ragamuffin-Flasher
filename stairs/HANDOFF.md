@@ -65,7 +65,7 @@ The far end of GPIO 5 is starved of power: by step 8 the blue ticks were gone an
 
 **Map format:** `start-end` per step (end included), top step first, optionally `/startBorder/endBorder` in pixels (e.g. `138-300/20/12`; -1 or missing = the global border width); a plain `start` runs to the next step. Pixels between one step's end and the next step's start stay dark (a loop of strip round a corner).
 
-**Editing the map:** page → Steps: tap a step and the board lights only it (first pixel green, last red, neighbours dim blue; `/step?stA=…&stB=…&out=A|B&i=N` previews without saving, `/step?done=1` ends). Nudge ±1/±10, then Save (`/cfg?stA=…&stB=…`).
+**Editing the map:** the Steps card and the Measure modes were taken off the page once the stairs were tuned (owner's call, Nov 28 2026). The firmware still has them: `/step?stA=…&stB=…&out=A|B&i=N` lights one step (`/step?done=1` ends), `/cfg?stA=…&stB=…` saves, `/set?m=13|14` shows the Measure ruler. Bring the card back from git history (commit 0fee6fb) if the strip is re-laid.
 
 ## Settings (NVS namespace `stairs`)
 `name nA nB ord trim fade lim limB pma stA stB bcr bcg bcb bw mw nOn nFr nTo nLv nWk tz r g b bri test mode spd ssid wpass mhost mport muser mpass`. Old boards may still hold `rings`/`sync` from the window firmware; they're ignored.
