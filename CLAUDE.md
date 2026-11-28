@@ -29,7 +29,9 @@ GitHub Actions is the build machine. Ship a change by pushing to `main`, then re
   - FastLED on **GPIO 4** (+ **GPIO 5**, 0 px = off); pixel counts are NVS settings (a change restarts). Colour order is applied in software, so a new reel is a setting.
   - A supply limit in mA cuts brightness; LEDs run on core 1 (loop), WiFi/web/MQTT/updates on core 0 (`netTask`), LEDs hold still during an update.
   - Network like the solenoid: AP "Window" (open, no password — owner's call) named after the board, STARLINK (hall) + ClarkShop presets, `hall-<name>.local` (name is a page setting, NVS `name`, default `window`; the stairs board is `stairs`), MQTT `ragamuffin/hall/<name>/{set,state,status}`.
+  - **Phone page = `window/app/`** (Vite + React, one file). `npm run build` there writes `window/page.h` as gzip bytes (served with `Content-Encoding: gzip`); CI runs it before compiling. Edit `window/app/src/App.jsx`, never `page.h`. `BOARD=http://<ip> npm run dev` runs it on a computer against a real board.
   - **NVS namespace `stairs`** (kept from the stair-lights start, so moved boards keep settings): `nA nB ord lim pma trim fade rings sync r g b bri test mode spd ssid wpass mhost mport muser mpass`. Rings: lengths on GPIO 4 in wiring order (`r` = reversed); Test draws one virtual ring (256) and lays it on every ring by angle when `sync` is on.
+- **`stairs/`:** the hall stair lights — the window firmware cut down for the stairs (no rings, ring sync or logo modes; 11 modes). `stairs.ino` + `stairs/app/` (React page → gzipped `page.h`, same as window). Start with `stairs/HANDOFF.md`. Default name `stairs`, AP "Stairs", NVS namespace `stairs` (same keys minus `rings`/`sync`). Flasher button **Hall stairs** (blue). Updates from `.../Ragamuffin-Flasher/stairs/`.
 - **`chime_box/`:** the hall chimes' control firmware on the original **ESP32-S3-BOX** (TT21100 touch, ILI9342C, ES8311 speaker) and its dock. Modular since 2026-11-08:
   - **Read first:**
     - `chimes.h` is the shared contract.
@@ -73,7 +75,8 @@ GitHub Actions is the build machine. Ship a change by pushing to `main`, then re
 | `solenoid/**` | `solenoid.yml` | `sol/` (`keep_files`) |
 | `chime/**` | `chime.yml` | `chime/` (`keep_files`) |
 | `chime_box/**` | `chimebox.yml` | `chimebox/` (`keep_files`); 16 MB, PSRAM opi, `app3M_fat9M_16MB` |
-| `window/**` | `window.yml` | `window/` + a copy in `stairs/` (`keep_files`) |
+| `window/**` | `window.yml` | `window/` (`keep_files`) |
+| `stairs/**` | `stairs.yml` | `stairs/` (`keep_files`) |
 | `flasher/**` | `flasher.yml` | the page root (`keep_files`) |
 
 - **Firmware builds:** arduino-cli with esp32 core 3.2.0, FQBN `esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=disabled,FlashSize=4M,PartitionScheme=default,FlashMode=dio`.
@@ -90,4 +93,4 @@ GitHub Actions is the build machine. Ship a change by pushing to `main`, then re
   - New Rocker for the wordmark and headings (a stand-in for the logo's face), Alegreya Sans for the UI. Both are self-hosted through @fontsource.
   - **`flasher/rose.js`** draws the window exactly. It's used by the page and by `brand/ragamuffin-hall-window.svg`; regenerate that file if rose.js changes.
   - While flashing, the petals go white and get coloured in as progress (`roseFill`). The progress bar uses the ring's red/blue dashes.
-  - **Board colours:** arm = yellow, camera = blue, solenoid = green, chimes and Chimes BOX = red, window lights = yellow (`body[data-board]` → `--gem` fills the Flash button). A new board needs a colour from those four.
+  - **Board colours:** arm = yellow, camera = blue, solenoid = green, chimes and Chimes BOX = red, window lights = yellow, stair lights = blue (`body[data-board]` → `--gem` fills the Flash button). A new board needs a colour from those four.

@@ -5,3 +5,8 @@ chime/version.h
 chime_box/version.h
 chime_box/build/
 window/version.h
+window/app/node_modules/
+window/app/dist/
+stairs/version.h
+stairs/app/node_modules/
+stairs/app/dist/

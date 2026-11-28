@@ -1,0 +1,29 @@
+/* Ragamuffin Hall brand (brand/BRAND.md): white paper, black ink, flat glass colours. Moved as-is from the old page.h. */
+:root{--red:#c62b29;--yellow:#fdcd09;--blue:#60b6e5;--green:#8dad3e;--ink:#060709;--paper:#fff;--dim:#555}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:17px 'Alegreya Sans',system-ui,sans-serif}
+main{max-width:480px;margin:0 auto;padding:14px 14px 40px}
+header{text-align:center;margin:4px 0 14px}.rose{width:120px;height:120px;display:block;margin:0 auto 4px}
+.word{font:34px 'New Rocker',Georgia,serif;letter-spacing:1px;margin:0;line-height:1}
+.sub{display:flex;align-items:center;justify-content:center;gap:10px;margin:4px 0 0;font:700 15px 'Alegreya Sans',sans-serif;letter-spacing:4px}
+.rule{height:2px;width:56px;background:linear-gradient(90deg,transparent,var(--ink))}.rule.r{background:linear-gradient(270deg,transparent,var(--ink))}
+#fw{color:var(--dim);font-size:13px;margin:4px 0 0}
+.card{border:2.5px solid var(--ink);border-radius:14px;padding:14px;margin-bottom:12px;background:var(--paper)}
+h2{font:22px 'New Rocker',Georgia,serif;margin:0 0 8px;font-weight:400}h2 small{font:14px 'Alegreya Sans',sans-serif;color:var(--dim)}
+button,select,input{font:inherit;color:var(--ink)}
+button{border:2.5px solid var(--ink);border-radius:10px;padding:11px 8px;background:var(--paper);width:100%;touch-action:manipulation;font-weight:700}
+button:active{background:var(--yellow)}button.on{background:var(--yellow)}
+.row{display:flex;gap:8px;margin-top:8px}.row>*{flex:1}
+.sw{height:64px;border:2.5px solid var(--ink);border-radius:10px;margin-bottom:10px;position:relative;overflow:hidden}
+.sw input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.sw span{position:absolute;right:10px;bottom:6px;font:700 14px ui-monospace,monospace;background:var(--paper);border:2px solid var(--ink);border-radius:6px;padding:1px 6px}
+.chips{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.chips button{padding:8px 2px;font-size:14px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.chips i{width:26px;height:26px;border-radius:50%;border:2px solid var(--ink)}
+.bri{display:flex;align-items:baseline;justify-content:space-between;margin:12px 0 2px}.bri b{font:30px 'New Rocker',Georgia,serif}
+input[type=range]{width:100%;accent-color:var(--ink);height:34px}
+.test{background:conic-gradient(var(--yellow) 0 25%,var(--green) 0 50%,var(--blue) 0 75%,var(--red) 0)}.test.on{outline:4px solid var(--ink);outline-offset:-8px}
+label{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0}
+label input,label select{width:150px;padding:6px 8px;border:2px solid var(--ink);border-radius:8px;background:var(--paper)}
+.hint{color:var(--dim);font-size:14px;margin:8px 0 0}#st{font:13px ui-monospace,monospace;color:var(--dim);margin-top:8px}
+.warn{color:var(--red);font-weight:700}
+.dash{height:6px;margin:4px 0 12px;background:repeating-linear-gradient(90deg,var(--red) 0 12px,var(--blue) 12px 24px);border-top:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink)}
+footer{text-align:center;color:var(--dim);font-size:13px}

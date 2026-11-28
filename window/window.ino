@@ -387,7 +387,7 @@ void ledLoop() {
 }
 
 // ---------- web ----------
-#include "page.h"   // PAGE: the phone page (Ragamuffin Hall brand)
+#include "page.h"   // PAGE: the phone page, gzipped. Generated from window/app (React): edit there, then npm run build
 
 
 String stateJson() {
@@ -418,7 +418,7 @@ void staService() {
 }
 
 void setupWeb() {
-  server.on("/", [] { server.send_P(200, "text/html", PAGE); });
+  server.on("/", [] { server.sendHeader("Content-Encoding", "gzip"); server.send_P(200, "text/html", (PGM_P)PAGE, PAGE_LEN); });
   server.on("/state", sendState);
   server.on("/set", [] {
     if (!applyLookArgs([](const char* k) { return server.hasArg(k); }, [](const char* k) { return server.arg(k); }))

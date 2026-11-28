@@ -52,6 +52,7 @@ Or the board page's **Install latest** (phone with mobile data). **The flasher d
 ## Code shape
 - Core 1 = `loop()` → `ledLoop()` (LEDs only). Core 0 = `netTask` (WiFi, web, MQTT, NVS saves, OTA).
 - **Flash safety (fixed a boot crash loop):** FastLED's RMT interrupt isn't cache-safe. LEDs start only after WiFi is up (`netReady`), every NVS write goes through `FlashHold` (waits out the frame), `WiFi.persistent(false)`, OTA holds the LEDs. Keep it that way.
+- **Phone page:** `window/app/` (React, Vite single-file). `npm run build` → gzipped `page.h`; CI does it before compile. Edit `app/src/App.jsx`, not `page.h`.
 - Colour order is applied in software (`wire()`); FastLED is set to RGB.
 - Arduino prototype scan: keep the page in `page.h`, and define functions after the types they use (a function before `struct Look` broke the build once).
 

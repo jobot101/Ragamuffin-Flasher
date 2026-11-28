@@ -1,5 +1,5 @@
-# Hall window lights (window/): builds on its own and publishes ONLY .../Ragamuffin-Flasher/window/ (+ a copy in stairs/,
-# so a board still running the old stair-lights build moves over with Install latest).
+# Hall window lights (window/): builds on its own and publishes ONLY .../Ragamuffin-Flasher/window/.
+# The stair lights have their own build now (stairs/, stairs.yml → .../stairs/).
 # The flasher page and the other boards stay untouched.
 # One addressable strip around the rose window (GPIO 4, optional GPIO 5) on any ESP32-S3, the Super Mini included. Arduino core 3.x, 4 MB image, no PSRAM, DIO flash so it boots on any
 # S3 module; native-USB serial (CDC on boot) for the flasher's boot log. Boards update from the page (Install latest).
@@ -40,6 +40,11 @@ jobs:
           arduino-cli lib install "FastLED" "PubSubClient"
           arduino-cli lib list | grep -Ei "fastled|pubsub"
 
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: window/app/package-lock.json }
+      - name: build the page (window/app, React → window/page.h)
+        run: cd window/app && npm ci && npm run build
+
       - name: compile
         run: |
           set -o pipefail
@@ -59,7 +64,6 @@ jobs:
           cp out/window.ino.partitions.bin $d/partitions.bin
           cp "$B0" $d/boot_app0.bin
           cp out/window.ino.bin $d/window.bin
-          cp $d/window.bin $d/stairs.bin   # old stair-lights boards fetch stairs.bin
           cat > $d/manifest.json <<JSON
           {"name":"window lights","version":"${GITHUB_SHA::7}","builds":[{"chipFamily":"ESP32-S3","parts":[
             {"path":"bootloader.bin","offset":0},{"path":"partitions.bin","offset":32768},
@@ -87,11 +91,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: pub
           destination_dir: window
-          keep_files: true
-      - name: same build into stairs/ (old stair-lights boards update from there)
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: pub
-          destination_dir: stairs
           keep_files: true
