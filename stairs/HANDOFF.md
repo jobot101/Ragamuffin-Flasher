@@ -20,7 +20,13 @@
 - Pixel count = chips, not LEDs. A count shorter than the strip leaves the rest frozen.
 - 5 V WS2812-class ≈ 60 mA per pixel at full white; set **supply limit mA** ≈ 85 % of the supply.
 
-## Step map (from Measure photos, Nov 28 2026; ±5 px, corners may hide a few)
+## Step map — tuned on the stairs (Nov 28 2026, Runner look perfected by the owner)
+These are the saved maps (also the firmware defaults). Format `start-end/startBorder/endBorder`; gaps between steps are dark loops.
+- **GPIO 4:** `0-136/-1/15,137-309/15/25,310-467/13/22,468-631/27/-1,632-783/15/-1,784-939/15/17,940-1091,1092-1243,1244-1397,1398-1545,1546-1699`
+- **GPIO 5:** `0-511/15/-1,512-675/22/22,681-833/17/17,851-1003/18/18,1009-1161/18/19,1183-1334/19/16,1339-1491/18/19,1492-1644/20/15,1659-1811/-1/20,1819-1971/20/15,1993-2135/15/14`
+- Border colour magenta (`ff00ff`), default border 15 px, middle stripe fills, GPIO 5 level 100 %, colour order GRB.
+
+### First measurement (Measure photos, ±5 px) — kept for reference
 **GPIO 4 = the upper flight, 11 steps.** Pixel 0 is the top step's left end; the strip snakes down (left→right, then right→left, …).
 
 | step (top = 1) | pixels | runs |

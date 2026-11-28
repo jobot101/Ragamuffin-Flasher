@@ -49,10 +49,10 @@ struct Cfg {
   int trimB = 100;                  // output 2 level %
   int fadeMs = 600;
   // step map: the first pixel of each step, top to bottom (pixel numbers grow going down), per output.
-  // Measured Nov 28 2026 (stairs/HANDOFF.md). GPIO 5's first entry (0) is the landing walls.
-  String stepsA = "0,138,301,466,628,786,932,1097,1245,1396,1546";
-  String stepsB = "0,520,676,830,1001,1167,1314,1494,1645,1815,1960";
-  uint8_t br = 253, bg = 205, bb = 9;   // border colour (default the hall's yellow)
+  // Tuned on the stairs Nov 28 2026 (stairs/HANDOFF.md): start-end/startBorder/endBorder. GPIO 5's first entry is the landing walls.
+  String stepsA = "0-136/-1/15,137-309/15/25,310-467/13/22,468-631/27/-1,632-783/15/-1,784-939/15/17,940-1091,1092-1243,1244-1397,1398-1545,1546-1699";
+  String stepsB = "0-511/15/-1,512-675/22/22,681-833/17/17,851-1003/18/18,1009-1161/18/19,1183-1334/19/16,1339-1491/18/19,1492-1644/20/15,1659-1811/-1/20,1819-1971/20/15,1993-2135/15/14";
+  uint8_t br = 255, bg = 0, bb = 255;   // border colour (magenta, as tuned)
   int borderPx = 15;                    // border at each end of a step
   int middlePx = 0;                     // middle stripe width, 0 = everything between the borders
 } cfg;
