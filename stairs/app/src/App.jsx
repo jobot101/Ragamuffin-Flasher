@@ -10,7 +10,7 @@ const COLOURS = [['Warm', 'ff9329'], ['Candle', 'ff6a10'], ['White', 'ffd9b0'], 
 const MODES = [['Solid', '■'], ['Pulse + colour', '◐'], ['Breathe', '○'], ['Spin', '◎'], ['Ripple', '≋'], ['Glass', '✦'], ['Candle', '♨'],
   ['Christmas', '🎄'], ['Candy cane', '🍬'], ['Snowfall', '❄'], ['Twinkle', '✧'], ['Runner', '▥'], ['Walk up', '⤴'], ['Measure GPIO 4', '📏'], ['Measure GPIO 5', '📐']]
 const WHY = { 2: 'auth expired', 15: 'wrong password', 201: 'not found (2.4 GHz only)', 202: 'wrong password', 203: 'refused', 204: 'wrong password', 205: 'refused' }
-const STRIP = ['nA', 'nB', 'ord', 'trim', 'fade', 'lim', 'pma', 'name', 'stA', 'stB', 'bc', 'bw', 'mw']
+const STRIP = ['nA', 'nB', 'ord', 'trim', 'fade', 'lim', 'pma', 'name', 'bc', 'bw', 'mw']
 
 const getJ = u => fetch(u).then(r => r.json())
 const qs = o => new URLSearchParams(o).toString()
@@ -79,6 +79,7 @@ export default function App() {
         {st.cap ? <span className="warn"> · held at the {st.lim} mA limit</span> : null}</> : '…')}</div>
     </div>
 
+    {st && <Steps st={st} show={show} />}
     {st && <Strip st={st} show={show} />}
     {!wifiFirst.current && wifi}
     {st && <Mqtt st={st} go={go} />}
@@ -114,18 +115,64 @@ function Strip({ st, show }) {
     <Field label="fade ms">{num('fade', 0, 5000)}</Field>
     <Field label="supply limit mA">{num('lim', 0, 200000, '0 = none')}</Field>
     <Field label="mA per pixel, full white">{num('pma', 1, 500)}</Field>
-    <h2 style={{ marginTop: 14 }}>Steps <small>for Runner and Walk up</small></h2>
-    <Field label="steps on GPIO 4"><input placeholder="0, 138, 301…" value={f.stA} onChange={set('stA')} /></Field>
-    <Field label="steps on GPIO 5"><input placeholder="0, 520, 676…" value={f.stB} onChange={set('stB')} /></Field>
+    <h2 style={{ marginTop: 14 }}>Runner <small>for Runner and Walk up</small></h2>
     <Field label="border colour"><input type="color" value={'#' + f.bc} onChange={e => setF({ ...f, bc: e.target.value.slice(1) })} /></Field>
     <Field label="border pixels each side">{num('bw', 0, 500)}</Field>
     <Field label="middle stripe pixels">{num('mw', 0, 2000, '0 = fill')}</Field>
     <div className="row"><button onClick={save}>Save</button></div>
-    <p className="hint">Steps = the first pixel of each step, top step first. Walk up lights GPIO 5 from its bottom step up (its first step, 0, is the landing walls), then GPIO 4 from its bottom step to the top. Runner and Walk up use the colour above for the middle stripe.</p>
+    <p className="hint">Runner and Walk up use the Light colour for the middle stripe. Step edges are set in Steps above.</p>
     <p className="hint">Board name → hall-NAME.local and its own WiFi; changing it restarts the board.
       Pixels = chips, not LEDs: WS2811 neon often has 3 LEDs per chip. Changing a pixel count restarts the board.
       Colour order: pick Test, then tap Red — if the strip shows green or blue, try the next order.
       mA per pixel = reel W/m ÷ volts ÷ pixels per metre × 1000 (WS2812B 5 V ≈ 60).</p>
+    <p className="hint">{msg}</p>
+  </div>
+}
+
+// Steps: tap a step and the board lights only it (green = its first pixel, red = its last, neighbours dim blue).
+// Nudge the edges and watch the stairs; nothing is kept until Save.
+const OUTS = { A: { label: 'Upper flight (GPIO 4)', n: 'nA', key: 'stA' }, B: { label: 'Landing + lower flight (GPIO 5)', n: 'nB', key: 'stB' } }
+const toList = s => (s || '').split(',').map(x => parseInt(x)).filter(x => x >= 0)
+
+function Steps({ st, show }) {
+  const [map, setMap] = useState(() => ({ A: toList(st.stA), B: toList(st.stB) }))
+  const [out, setOut] = useState('A')
+  const [sel, setSel] = useState(null)
+  const [msg, setMsg] = useState('')
+  const timer = useRef(0)
+  const list = map[out], n = st[OUTS[out].n]
+  const end = i => (i + 1 < list.length ? list[i + 1] : n) - 1
+  const name = i => out === 'B' && i === 0 ? 'Landing walls' : 'Step ' + (out === 'B' ? i : i + 1)
+
+  const preview = (m, o, i) => {   // send the edited map + which step to light, a moment after the last tap
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => getJ('/step?' + qs({ stA: m.A.join(','), stB: m.B.join(','), out: o, i })).then(show).catch(() => {}), 120)
+  }
+  const pick = i => { setSel(i); preview(map, out, i) }
+  const move = (k, d) => {          // move the boundary at list[k] (k > 0) by d, keeping every step at least 1 pixel
+    const l = [...list], lo = l[k - 1] + 1, hi = (k + 1 < l.length ? l[k + 1] : n) - 1
+    l[k] = Math.min(hi, Math.max(lo, l[k] + d))
+    const m = { ...map, [out]: l }; setMap(m); setMsg('not saved'); preview(m, out, sel)
+  }
+  const save = () => getJ('/cfg?' + qs({ stA: map.A.join(','), stB: map.B.join(',') }))
+    .then(j => { setMsg(j.err || 'Saved ✓'); show(j) }).catch(() => setMsg('no reply'))
+  const done = () => { setSel(null); getJ('/step?done=1').then(show) }
+  const Nudge = ({ k }) => <div className="row" style={{ marginTop: 4 }}>
+    {[-10, -1, 1, 10].map(d => <button key={d} onClick={() => move(k, d)}>{d > 0 ? '+' + d : d}</button>)}</div>
+
+  return <div className="card"><h2>Steps <small>tap one, nudge its edges, Save</small></h2>
+    <div className="row">{Object.keys(OUTS).map(o =>
+      <button key={o} className={o === out ? 'on' : ''} onClick={() => { setOut(o); setSel(null) }}>{OUTS[o].label}</button>)}</div>
+    {list.map((from, i) => <div key={i}>
+      <div className="row"><button className={i === sel ? 'on' : ''} onClick={() => pick(i)} style={{ textAlign: 'left' }}>
+        {name(i)} · {from}–{end(i)} <small>({end(i) - from + 1} px)</small></button></div>
+      {i === sel && <>
+        {i > 0 && <p className="hint">Start (green): <b>{from}</b></p>}{i > 0 && <Nudge k={i} />}
+        {i + 1 < list.length && <><p className="hint">End (red): <b>{end(i)}</b></p><Nudge k={i + 1} /></>}
+      </>}
+    </div>)}
+    <div className="row"><button onClick={save}>Save</button><button onClick={done}>Done</button></div>
+    <p className="hint">Top step first. Move green onto the first lit pixel at one end of the step and red onto the last at the other end; moving an edge also moves the step next to it. Done goes back to the lights; Save keeps the map.</p>
     <p className="hint">{msg}</p>
   </div>
 }

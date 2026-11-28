@@ -138,6 +138,8 @@ bool applyLookArgs(std::function<bool(const char*)> has, std::function<String(co
 // (after struct Look: Arduino puts its prototypes above the first function, so no function may come before the types)
 const int MAX_STEPS = 40;
 int nStA = 0, nStB = 0, stA[MAX_STEPS], stB[MAX_STEPS];
+// step editor (page → Steps): light one step so its edges can be nudged; the map isn't saved until /cfg
+volatile uint32_t stepPrevUntil = 0; volatile int prevI = 0; volatile bool prevB = false;
 void parseSteps(const String& s, int* out, int& n, int npix) {
   n = 0; int v = -1;
   for (int i = 0; i <= (int)s.length(); i++) {
@@ -349,6 +351,23 @@ void ledLoop() {
   Look L = getLook();
   if (lookVer != seen) { seen = lookVer; fr = cr; fg = cg; fb = cb; fbri = cbri; fadeT0 = now; }
 
+  if ((int32_t)(stepPrevUntil - now) > 0) {   // step editor: the chosen step dim white, first pixel green, last red, neighbours dim blue
+    fill_solid(ledA, cfg.nA, CRGB::Black); if (ledB) fill_solid(ledB, cfg.nB, CRGB::Black);
+    bool b = prevB; int i = prevI, ns = b ? nStB : nStA, n = b ? cfg.nB : cfg.nA;
+    int* st = b ? stB : stA; CRGB* led = b ? ledB : ledA;
+    uint32_t sum = 0;
+    if (led && i >= 0 && i < ns) {
+      auto end = [&](int k) { return k + 1 < ns ? st[k + 1] : n; };
+      if (i > 0) fill_solid(led + st[i - 1], st[i] - st[i - 1], wire(CRGB(0, 0, 40)));
+      if (i + 1 < ns) fill_solid(led + end(i), end(i + 1) - end(i), wire(CRGB(0, 0, 40)));
+      fill_solid(led + st[i], end(i) - st[i], wire(CRGB(50, 50, 50)));
+      led[st[i]] = wire(CRGB(0, 255, 0)); led[end(i) - 1] = wire(CRGB(255, 0, 0));
+      sum = (uint32_t)(end(i) - st[i]) * 150 + 510;
+    }
+    showFrame(100, sum); wasTest = true; delay(30);
+    return;
+  }
+
   if (!L.test && L.mode > 0) {                // an animated mode
     renderMode(L, now);
     uint32_t sum = 0;
@@ -449,6 +468,14 @@ void setupWeb() {
     if (cfg.nA != oA || cfg.nB != oB) {
       server.send(200, "application/json", "{\"restart\":1}"); delay(400); ESP.restart();
     }
+    sendState();
+  });
+  server.on("/step", [] {                  // preview an edited step map without saving: stA, stB, out=A|B, i; done=1 ends it
+    if (server.hasArg("stA")) parseSteps(server.arg("stA"), stA, nStA, cfg.nA);
+    if (server.hasArg("stB")) parseSteps(server.arg("stB"), stB, nStB, cfg.nB);
+    if (server.hasArg("i")) { prevB = server.arg("out") == "B"; prevI = server.arg("i").toInt(); stepPrevUntil = millis() + 60000; }
+    if (server.hasArg("done")) { stepPrevUntil = 0; parseAllSteps(); }   // back to the saved map
+    portENTER_CRITICAL(&mux); lookVer++; portEXIT_CRITICAL(&mux);
     sendState();
   });
   server.on("/scan", [] {

@@ -57,6 +57,8 @@
 
 The far end of GPIO 5 is starved of power: by step 8 the blue ticks were gone and only red/green showed (voltage drop). Needs power injected at the bottom of the lower flight.
 
+**Editing the map:** page → Steps: tap a step and the board lights only it (first pixel green, last red, neighbours dim blue; `/step?stA=…&stB=…&out=A|B&i=N` previews without saving, `/step?done=1` ends). Nudge ±1/±10, then Save (`/cfg?stA=…&stB=…`).
+
 ## Settings (NVS namespace `stairs`)
 `name nA nB ord trim fade lim pma stA stB bcr bcg bcb bw mw r g b bri test mode spd ssid wpass mhost mport muser mpass`. Old boards may still hold `rings`/`sync` from the window firmware; they're ignored.
 
