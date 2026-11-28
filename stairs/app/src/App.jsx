@@ -8,9 +8,9 @@ const ORD = ['GRB', 'RGB', 'BRG', 'RBG', 'GBR', 'BGR']
 const COLOURS = [['Warm', 'ff9329'], ['Candle', 'ff6a10'], ['White', 'ffd9b0'], ['Day', 'ffffff'], ['Red', 'c62b29'], ['Yellow', 'fdcd09'],
   ['Green', '8dad3e'], ['Blue', '60b6e5'], ['Show', '0a2a8a'], ['Purple', '7a2cff'], ['Pink', 'ff3c8a'], ['Teal', '00c0a0']]
 // the firmware's mode numbers (the rest stay in the firmware, not offered here)
-const MODES = { 0: 'Solid', 7: 'Christmas', 11: 'Runner', 12: 'Walk up' }
+const MODES = { 0: 'Solid', 7: 'Christmas', 11: 'Runner', 12: 'Walk up', 15: 'Arrow' }
 // the buttons: Party is the firmware's Test sequence (rainbow, glitter, confetti, juggle, party colours, 8 s each)
-const PICKS = [['Runner', '▥', 11], ['Walk up', '⤴', 12], ['Party', '🎉', 'party'], ['Christmas', '🎄', 7], ['Solid', '■', 0]]
+const PICKS = [['Runner', '▥', 11], ['Walk up', '⤴', 12], ['Arrow', '⬆', 15], ['Party', '🎉', 'party'], ['Christmas', '🎄', 7], ['Solid', '■', 0]]
 const WHY = { 2: 'auth expired', 15: 'wrong password', 201: 'not found (2.4 GHz only)', 202: 'wrong password', 203: 'refused', 204: 'wrong password', 205: 'refused' }
 const STRIP = ['nA', 'nB', 'ord', 'trim', 'fade', 'lim', 'limB', 'pma', 'name', 'bc', 'bw', 'mw']
 

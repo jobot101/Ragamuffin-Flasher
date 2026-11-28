@@ -71,7 +71,7 @@ The far end of GPIO 5 is starved of power: by step 8 the blue ticks were gone an
 `name nA nB ord trim fade lim limB pma stA stB bcr bcg bcb bw mw nOn nFr nTo nLv nWk tz r g b bri test mode spd ssid wpass mhost mport muser mpass`. Old boards may still hold `rings`/`sync` from the window firmware; they're ignored.
 
 ## Modes (speed 50 = 1×)
-**On the page (owner's pick, Nov 28 2026):** Runner (11) · Walk up (12) · Party (= the Test sequence, `test=1`) · Christmas (7) · Solid (0). The others below stay in the firmware but have no button.
+**On the page (owner's pick, Nov 28 2026):** Runner (11) · Walk up (12) · Arrow (15: a big arrow climbing the stairs — point on one step, head widening over 4 steps below, 4-step shaft; borders lit; 300 ms a step at 1×) · Party (= the Test sequence, `test=1`) · Christmas (7) · Solid (0). The others below stay in the firmware but have no button.
 
 0 solid · 1 pulse + colour · 2 breathe · 3 spin · 4 ripple · 5 glass · 6 candle · 7 christmas · 8 candy cane · 9 snowfall · 10 twinkle · 11 runner (every step: a border at both ends in the border colour, the chosen colour up the middle) · 12 walk up (the side borders stay lit; the middle stripes light step by step from the bottom of GPIO 5 up through the landing and GPIO 4 to the top, holds, clears the same way; speed scales it) · 13 measure GPIO 4 · 14 measure GPIO 5 (a ruler for filming, one output lit: blue dot every 10th pixel; at every 100th a 3-px bar — white <1000, green 1000+, yellow 2000+ — then the hundreds digit as that many red dots; green ×5 at pixel 0, red ×5 at the end). Test (all effects, 8 s each) is separate. Patterns run along GPIO 4; GPIO 5 repeats them.
 

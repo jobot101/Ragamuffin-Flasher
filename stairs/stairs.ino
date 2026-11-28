@@ -70,10 +70,10 @@ const int NORD = 6;
 struct Look { uint8_t r, g, b; int bri; bool test; int mode; int spd; };
 Look look = {255, 147, 41, 40, true, 0, 50};
 // Modes (the everyday choices; Test is separate). Speed 50 = 1x.
-const int NMODES = 15;
+const int NMODES = 16;
 const char* MODEN[] = {"solid", "pulse + colour", "breathe", "spin", "ripple", "glass", "candle",
-                       "christmas", "candy cane", "snowfall", "twinkle", "runner", "walk up", "measure 4", "measure 5"};
-bool modeUsesColour(int m) { return m == 0 || m == 2 || m == 4 || m == 11 || m == 12; }
+                       "christmas", "candy cane", "snowfall", "twinkle", "runner", "walk up", "measure 4", "measure 5", "arrow"};
+bool modeUsesColour(int m) { return m == 0 || m == 2 || m == 4 || m == 11 || m == 12 || m == 15; }
 // NVS namespace stays "stairs" (this started as the stair lights) so a board moved over keeps its WiFi and strip settings   // fresh board: Test on at 40 % so a new strip shows everything straight away
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 volatile uint32_t lookVer = 1;
@@ -313,6 +313,31 @@ void renderSteps(CRGB mid, uint32_t t, bool walk) {
   }
 }
 
+// arrow: a big arrow climbing the stairs, drawn across several steps: the point narrow on its top step, the head
+// widening over the steps below, then a thinner shaft. Step borders stay lit; the arrow is the chosen colour.
+void renderArrow(CRGB mid, uint32_t t) {
+  const float STEP = 300, HEAD = 4, SHAFT = 4;   // ms per step at 1x; head and shaft height in steps
+  int total = nStB + nStA;
+  fill_solid(tA, cfg.nA, CRGB::Black); if (tB) fill_solid(tB, cfg.nB, CRGB::Black);
+  float tip = fmodf(t / STEP, total + HEAD + SHAFT + 2);   // 0 = the bottom step
+  for (int k = 0; k < total; k++) {
+    bool onB = k < nStB;
+    int i = onB ? nStB - 1 - k : nStA - 1 - (k - nStB);
+    int* st = onB ? stB : stA; int* en = onB ? enB : enA; int* bs = onB ? bsB : bsA; int* be = onB ? beB : beA;
+    CRGB* l = onB ? tB : tA;
+    paintStep(l, st[i], en[i], bs[i], be[i], CRGB::Black, 255, 0);   // borders only
+    float d = tip - k, hw = 0;
+    if (d >= 0 && d < HEAD) hw = 0.06f + 0.44f * d / HEAD;           // the head widens below the point
+    else if (d >= HEAD && d < HEAD + SHAFT) hw = 0.12f;              // the shaft
+    if (hw <= 0) continue;
+    int len = en[i] - st[i], ws = min(bs[i] < 0 ? cfg.borderPx : bs[i], len), we = min(be[i] < 0 ? cfg.borderPx : be[i], len - ws);
+    int m0 = st[i] + ws, m1 = en[i] - we; if (m1 <= m0) continue;
+    float c = (m0 + m1) / 2.0f, h = hw * (m1 - m0);
+    int a = max(m0, (int)(c - h)), b = min(m1, (int)(c + h) + 1);
+    if (b > a) fill_solid(l + a, b - a, mid);
+  }
+}
+
 // ---------- night mode ----------
 volatile uint32_t wakeAt = 0;            // millis() of the last wake, 0 = none
 void wakeStairs() { wakeAt = millis() | 1; }
@@ -345,7 +370,7 @@ void renderNight(CRGB mid, uint32_t now) {
 }
 
 void renderMode(const Look& L, uint32_t ms) {
-  if (L.mode >= 13) {                           // measure: one output's ruler, the other dark
+  if (L.mode == 13 || L.mode == 14) {         // measure: one output's ruler, the other dark
     fill_solid(tA, cfg.nA, CRGB::Black); fill_solid(tB, cfg.nB, CRGB::Black);
     if (L.mode == 13) measure(tA, cfg.nA); else measure(tB, cfg.nB);
     return;
@@ -357,6 +382,7 @@ void renderMode(const Look& L, uint32_t ms) {
   uint32_t t = tAcc;
   CRGB base(L.r, L.g, L.b);
   if (L.mode == 11 || L.mode == 12) { renderSteps(base, t, L.mode == 12); return; }
+  if (L.mode == 15) { renderArrow(base, t); return; }
   switch (L.mode) {
     case 1: {                                     // pulse + colour: ~6 s breath, hue walks the wheel in ~60 s
       uint8_t b = 30 + scale8(sin8(t / 24), 225);
