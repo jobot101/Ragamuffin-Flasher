@@ -56,18 +56,6 @@ struct Cfg {
   int borderPx = 15;                    // border at each end of a step
   int middlePx = 0;                     // middle stripe width, 0 = everything between the borders
 } cfg;
-const int MAX_STEPS = 40;
-int nStA = 0, nStB = 0, stA[MAX_STEPS], stB[MAX_STEPS];
-void parseSteps(const String& s, int* out, int& n, int npix) {
-  n = 0; int v = -1;
-  for (int i = 0; i <= (int)s.length(); i++) {
-    char c = i < (int)s.length() ? s[i] : ',';
-    if (isdigit(c)) v = (v < 0 ? 0 : v * 10) + (c - '0');
-    else if (v >= 0) { if (v < npix && n < MAX_STEPS && (n == 0 || v > out[n - 1])) out[n++] = v; v = -1; }
-  }
-  if (!n && npix > 0) out[n++] = 0;     // no map: the whole output is one step
-}
-void parseAllSteps() { parseSteps(cfg.stepsA, stA, nStA, cfg.nA); parseSteps(cfg.stepsB, stB, nStB, cfg.nB); }
 const char* ORDERS[] = {"GRB", "RGB", "BRG", "RBG", "GBR", "BGR"};
 const int NORD = 6;
 
@@ -147,6 +135,20 @@ bool applyLookArgs(std::function<bool(const char*)> has, std::function<String(co
 }
 
 // ---------- config ----------
+// (after struct Look: Arduino puts its prototypes above the first function, so no function may come before the types)
+const int MAX_STEPS = 40;
+int nStA = 0, nStB = 0, stA[MAX_STEPS], stB[MAX_STEPS];
+void parseSteps(const String& s, int* out, int& n, int npix) {
+  n = 0; int v = -1;
+  for (int i = 0; i <= (int)s.length(); i++) {
+    char c = i < (int)s.length() ? s[i] : ',';
+    if (isdigit(c)) v = (v < 0 ? 0 : v * 10) + (c - '0');
+    else if (v >= 0) { if (v < npix && n < MAX_STEPS && (n == 0 || v > out[n - 1])) out[n++] = v; v = -1; }
+  }
+  if (!n && npix > 0) out[n++] = 0;     // no map: the whole output is one step
+}
+void parseAllSteps() { parseSteps(cfg.stepsA, stA, nStA, cfg.nA); parseSteps(cfg.stepsB, stB, nStB, cfg.nB); }
+
 void loadAll() {
   FlashHold fh; Preferences prefs; prefs.begin("stairs", true);
   cfg.nA = prefs.getInt("nA", cfg.nA); cfg.nB = prefs.getInt("nB", cfg.nB); cfg.ord = prefs.getInt("ord", cfg.ord);
