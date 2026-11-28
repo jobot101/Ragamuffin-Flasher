@@ -8,9 +8,9 @@ const ORD = ['GRB', 'RGB', 'BRG', 'RBG', 'GBR', 'BGR']
 const COLOURS = [['Warm', 'ff9329'], ['Candle', 'ff6a10'], ['White', 'ffd9b0'], ['Day', 'ffffff'], ['Red', 'c62b29'], ['Yellow', 'fdcd09'],
   ['Green', '8dad3e'], ['Blue', '60b6e5'], ['Show', '0a2a8a'], ['Purple', '7a2cff'], ['Pink', 'ff3c8a'], ['Teal', '00c0a0']]
 const MODES = [['Solid', '■'], ['Pulse + colour', '◐'], ['Breathe', '○'], ['Spin', '◎'], ['Ripple', '≋'], ['Glass', '✦'], ['Candle', '♨'],
-  ['Christmas', '🎄'], ['Candy cane', '🍬'], ['Snowfall', '❄'], ['Twinkle', '✧'], ['Measure GPIO 4', '📏'], ['Measure GPIO 5', '📐']]
+  ['Christmas', '🎄'], ['Candy cane', '🍬'], ['Snowfall', '❄'], ['Twinkle', '✧'], ['Runner', '▥'], ['Walk up', '⤴'], ['Measure GPIO 4', '📏'], ['Measure GPIO 5', '📐']]
 const WHY = { 2: 'auth expired', 15: 'wrong password', 201: 'not found (2.4 GHz only)', 202: 'wrong password', 203: 'refused', 204: 'wrong password', 205: 'refused' }
-const STRIP = ['nA', 'nB', 'ord', 'trim', 'fade', 'lim', 'pma', 'name']
+const STRIP = ['nA', 'nB', 'ord', 'trim', 'fade', 'lim', 'pma', 'name', 'stA', 'stB', 'bc', 'bw', 'mw']
 
 const getJ = u => fetch(u).then(r => r.json())
 const qs = o => new URLSearchParams(o).toString()
@@ -96,7 +96,7 @@ function Strip({ st, show }) {
   const num = (k, min, max, ph) => <input type="number" min={min} max={max} placeholder={ph} value={f[k]} onChange={set(k)} />
 
   const save = () => {
-    const o = { ...f }; ['nA', 'nB', 'ord', 'trim', 'fade', 'lim', 'pma'].forEach(k => o[k] = o[k] || 0)
+    const o = { ...f }; ['nA', 'nB', 'ord', 'trim', 'fade', 'lim', 'pma', 'bw', 'mw'].forEach(k => o[k] = o[k] || 0)
     getJ('/cfg?' + qs(o)).then(j => {
       if (j.err) return setMsg(j.err)
       if (!j.restart) { setMsg('Saved ✓'); setF(pick(j, STRIP)); return show(j) }
@@ -114,7 +114,14 @@ function Strip({ st, show }) {
     <Field label="fade ms">{num('fade', 0, 5000)}</Field>
     <Field label="supply limit mA">{num('lim', 0, 200000, '0 = none')}</Field>
     <Field label="mA per pixel, full white">{num('pma', 1, 500)}</Field>
+    <h2 style={{ marginTop: 14 }}>Steps <small>for Runner and Walk up</small></h2>
+    <Field label="steps on GPIO 4"><input placeholder="0, 138, 301…" value={f.stA} onChange={set('stA')} /></Field>
+    <Field label="steps on GPIO 5"><input placeholder="0, 520, 676…" value={f.stB} onChange={set('stB')} /></Field>
+    <Field label="border colour"><input type="color" value={'#' + f.bc} onChange={e => setF({ ...f, bc: e.target.value.slice(1) })} /></Field>
+    <Field label="border pixels each side">{num('bw', 0, 500)}</Field>
+    <Field label="middle stripe pixels">{num('mw', 0, 2000, '0 = fill')}</Field>
     <div className="row"><button onClick={save}>Save</button></div>
+    <p className="hint">Steps = the first pixel of each step, top step first. Walk up lights GPIO 5 from its bottom step up (its first step, 0, is the landing walls), then GPIO 4 from its bottom step to the top. Runner and Walk up use the colour above for the middle stripe.</p>
     <p className="hint">Board name → hall-NAME.local and its own WiFi; changing it restarts the board.
       Pixels = chips, not LEDs: WS2811 neon often has 3 LEDs per chip. Changing a pixel count restarts the board.
       Colour order: pick Test, then tap Red — if the strip shows green or blue, try the next order.
@@ -156,7 +163,7 @@ function Mqtt({ st, go }) {
     <Field label="user"><input value={f.user} onChange={set('user')} /></Field>
     <Field label="password"><input type="password" placeholder="unchanged" value={f.pass} onChange={set('pass')} /></Field>
     <div className="row"><button onClick={save}>Save</button></div>
-    <p className="hint">Send to <b>ragamuffin/hall/{st.name}/set</b>: <code>c=ff9329&amp;b=30</code> · <code>m=1&amp;s=40</code> (mode 0–12, speed 1–100) · <code>b=0</code> · <code>test=1</code>. State is on <b>…/state</b>.</p>
+    <p className="hint">Send to <b>ragamuffin/hall/{st.name}/set</b>: <code>c=ff9329&amp;b=30</code> · <code>m=1&amp;s=40</code> (mode 0–14, speed 1–100) · <code>b=0</code> · <code>test=1</code>. State is on <b>…/state</b>.</p>
   </div>
 }
 

@@ -48,17 +48,36 @@ struct Cfg {
   int pixMA = 60;                   // one pixel at full white (WS2812B 5 V = 60)
   int trimB = 100;                  // output 2 level %
   int fadeMs = 600;
+  // step map: the first pixel of each step, top to bottom (pixel numbers grow going down), per output.
+  // Measured Nov 28 2026 (stairs/HANDOFF.md). GPIO 5's first entry (0) is the landing walls.
+  String stepsA = "0,138,301,466,628,786,932,1097,1245,1396,1546";
+  String stepsB = "0,520,676,830,1001,1167,1314,1494,1645,1815,1960";
+  uint8_t br = 253, bg = 205, bb = 9;   // border colour (default the hall's yellow)
+  int borderPx = 15;                    // border at each end of a step
+  int middlePx = 0;                     // middle stripe width, 0 = everything between the borders
 } cfg;
+const int MAX_STEPS = 40;
+int nStA = 0, nStB = 0, stA[MAX_STEPS], stB[MAX_STEPS];
+void parseSteps(const String& s, int* out, int& n, int npix) {
+  n = 0; int v = -1;
+  for (int i = 0; i <= (int)s.length(); i++) {
+    char c = i < (int)s.length() ? s[i] : ',';
+    if (isdigit(c)) v = (v < 0 ? 0 : v * 10) + (c - '0');
+    else if (v >= 0) { if (v < npix && n < MAX_STEPS && (n == 0 || v > out[n - 1])) out[n++] = v; v = -1; }
+  }
+  if (!n && npix > 0) out[n++] = 0;     // no map: the whole output is one step
+}
+void parseAllSteps() { parseSteps(cfg.stepsA, stA, nStA, cfg.nA); parseSteps(cfg.stepsB, stB, nStB, cfg.nB); }
 const char* ORDERS[] = {"GRB", "RGB", "BRG", "RBG", "GBR", "BGR"};
 const int NORD = 6;
 
 struct Look { uint8_t r, g, b; int bri; bool test; int mode; int spd; };
 Look look = {255, 147, 41, 40, true, 0, 50};
 // Modes (the everyday choices; Test is separate). Speed 50 = 1x.
-const int NMODES = 13;
+const int NMODES = 15;
 const char* MODEN[] = {"solid", "pulse + colour", "breathe", "spin", "ripple", "glass", "candle",
-                       "christmas", "candy cane", "snowfall", "twinkle", "measure 4", "measure 5"};
-bool modeUsesColour(int m) { return m == 0 || m == 2 || m == 4; }
+                       "christmas", "candy cane", "snowfall", "twinkle", "runner", "walk up", "measure 4", "measure 5"};
+bool modeUsesColour(int m) { return m == 0 || m == 2 || m == 4 || m == 11 || m == 12; }
 // NVS namespace stays "stairs" (this started as the stair lights) so a board moved over keeps its WiFi and strip settings   // fresh board: Test on at 40 % so a new strip shows everything straight away
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 volatile uint32_t lookVer = 1;
@@ -134,6 +153,9 @@ void loadAll() {
   cfg.limMA = prefs.getInt("lim", cfg.limMA); cfg.pixMA = prefs.getInt("pma", cfg.pixMA);
   cfg.trimB = prefs.getInt("trim", cfg.trimB); cfg.fadeMs = prefs.getInt("fade", cfg.fadeMs);
   devName = cleanName(prefs.getString("name", DEF_NAME)); applyName();
+  cfg.stepsA = prefs.getString("stA", cfg.stepsA); cfg.stepsB = prefs.getString("stB", cfg.stepsB);
+  cfg.br = prefs.getUChar("bcr", cfg.br); cfg.bg = prefs.getUChar("bcg", cfg.bg); cfg.bb = prefs.getUChar("bcb", cfg.bb);
+  cfg.borderPx = prefs.getInt("bw", cfg.borderPx); cfg.middlePx = prefs.getInt("mw", cfg.middlePx);
   look.r = prefs.getUChar("r", look.r); look.g = prefs.getUChar("g", look.g); look.b = prefs.getUChar("b", look.b);
   look.bri = prefs.getInt("bri", look.bri); look.test = prefs.getBool("test", look.test);
   look.mode = constrain((int)prefs.getInt("mode", 0), 0, NMODES - 1); look.spd = constrain((int)prefs.getInt("spd", 50), 1, 100);
@@ -143,11 +165,15 @@ void loadAll() {
   prefs.end();
   cfg.nA = constrain(cfg.nA, 1, MAX_PIX); cfg.nB = constrain(cfg.nB, 0, MAX_PIX);
   if (cfg.ord < 0 || cfg.ord >= NORD) cfg.ord = 0;
+  parseAllSteps();
 }
 void saveCfg() {
   FlashHold fh; Preferences prefs; prefs.begin("stairs", false);
   prefs.putInt("nA", cfg.nA); prefs.putInt("nB", cfg.nB); prefs.putInt("ord", cfg.ord);
   prefs.putInt("lim", cfg.limMA); prefs.putInt("pma", cfg.pixMA); prefs.putInt("trim", cfg.trimB); prefs.putInt("fade", cfg.fadeMs);
+  prefs.putString("stA", cfg.stepsA); prefs.putString("stB", cfg.stepsB);
+  prefs.putUChar("bcr", cfg.br); prefs.putUChar("bcg", cfg.bg); prefs.putUChar("bcb", cfg.bb);
+  prefs.putInt("bw", cfg.borderPx); prefs.putInt("mw", cfg.middlePx);
   prefs.end();
 }
 void saveLook() {
@@ -219,10 +245,39 @@ void measure(CRGB* l, int n) {
   for (int k = 0; k < 5 && k < n; k++) { l[k] = CRGB(0, 255, 0); l[n - 1 - k] = CRGB(255, 0, 0); }
 }
 
+// runner: every step gets a border at both ends (border colour) and a stripe of the chosen colour up the middle.
+void paintStep(CRGB* l, int from, int to, CRGB mid, uint8_t lv) {
+  int len = to - from; if (len <= 0) return;
+  fill_solid(l + from, len, CRGB::Black);
+  CRGB bc(cfg.br, cfg.bg, cfg.bb); bc.nscale8_video(lv); mid.nscale8_video(lv);
+  int bw = min(cfg.borderPx, len / 2);
+  int m0 = from + bw, m1 = to - bw;
+  if (cfg.middlePx > 0 && cfg.middlePx < m1 - m0) { int c = (from + to) / 2; m0 = c - cfg.middlePx / 2; m1 = m0 + cfg.middlePx; }
+  if (bw > 0) { fill_solid(l + from, bw, bc); fill_solid(l + to - bw, bw, bc); }
+  if (m1 > m0) fill_solid(l + m0, m1 - m0, mid);
+}
+// steps in walking order: k = 0 is the bottom of GPIO 5 (lower flight), up through the landing, then GPIO 4 bottom to top
+void renderSteps(CRGB mid, uint32_t t, bool walk) {
+  const uint32_t STEP = 400, HOLD = 5000, GAP = 1500;           // ms at speed 1x
+  int total = nStB + nStA;
+  uint32_t up = (uint32_t)total * STEP, cycle = up + HOLD + up + GAP, p = t % cycle;
+  for (int k = 0; k < total; k++) {
+    bool onB = k < nStB;
+    int i = onB ? nStB - 1 - k : nStA - 1 - (k - nStB);
+    int* st = onB ? stB : stA; int ns = onB ? nStB : nStA; int npix = onB ? cfg.nB : cfg.nA;
+    uint8_t lv = 255;
+    if (walk) {                                                  // on one by one going up, hold, off one by one going up
+      uint32_t on = k * STEP, off = up + HOLD + k * STEP;
+      lv = p < on ? 0 : p < on + STEP ? (p - on) * 255 / STEP : p < off ? 255 : p < off + STEP ? 255 - (p - off) * 255 / STEP : 0;
+    }
+    paintStep(onB ? tB : tA, st[i], i + 1 < ns ? st[i + 1] : npix, mid, lv);
+  }
+}
+
 void renderMode(const Look& L, uint32_t ms) {
-  if (L.mode >= 11) {                           // measure: one output's ruler, the other dark
+  if (L.mode >= 13) {                           // measure: one output's ruler, the other dark
     fill_solid(tA, cfg.nA, CRGB::Black); fill_solid(tB, cfg.nB, CRGB::Black);
-    if (L.mode == 11) measure(tA, cfg.nA); else measure(tB, cfg.nB);
+    if (L.mode == 13) measure(tA, cfg.nA); else measure(tB, cfg.nB);
     return;
   }
   static const CRGB GLASS[] = {CRGB(0xc6, 0x2b, 0x29), CRGB(0xfd, 0xcd, 0x09), CRGB(0x60, 0xb6, 0xe5), CRGB(0x8d, 0xad, 0x3e)};
@@ -231,6 +286,7 @@ void renderMode(const Look& L, uint32_t ms) {
   tAcc += (uint32_t)((ms - last) * (L.spd / 50.0f)); last = ms;
   uint32_t t = tAcc;
   CRGB base(L.r, L.g, L.b);
+  if (L.mode == 11 || L.mode == 12) { renderSteps(base, t, L.mode == 12); return; }
   switch (L.mode) {
     case 1: {                                     // pulse + colour: ~6 s breath, hue walks the wheel in ~60 s
       uint8_t b = 30 + scale8(sin8(t / 24), 225);
@@ -337,13 +393,13 @@ void ledLoop() {
 String stateJson() {
   Look L = getLook();
   bool up = WiFi.status() == WL_CONNECTED;
-  char b[1100];
+  char b[1500];
   snprintf(b, sizeof b,
     "{\"fw\":\"%s\",\"name\":\"%s\",\"host\":\"%s\",\"c\":\"%02x%02x%02x\",\"b\":%d,\"test\":%d,\"fx\":\"%s\",\"m\":%d,\"s\":%d,\"nA\":%d,\"nB\":%d,\"ord\":%d,\"trim\":%d,\"fade\":%d,"
-    "\"lim\":%d,\"pma\":%d,\"ma\":%d,\"cap\":%d,"
+    "\"lim\":%d,\"pma\":%d,\"ma\":%d,\"cap\":%d,\"stA\":\"%s\",\"stB\":\"%s\",\"bc\":\"%02x%02x%02x\",\"bw\":%d,\"mw\":%d,"
     "\"net\":{\"ssid\":\"%s\",\"up\":%d,\"ip\":\"%s\",\"why\":%d},\"mqtt\":{\"host\":\"%s\",\"port\":%u,\"user\":\"%s\",\"up\":%d}}",
     FW_VERSION, devName.c_str(), HOSTNAME, L.r, L.g, L.b, L.bri, L.test, FXN[fx], L.mode, L.spd, cfg.nA, cfg.nB, cfg.ord, cfg.trimB, cfg.fadeMs,
-    cfg.limMA, cfg.pixMA, (int)estMA, (int)capped,
+    cfg.limMA, cfg.pixMA, (int)estMA, (int)capped, esc(cfg.stepsA).c_str(), esc(cfg.stepsB).c_str(), cfg.br, cfg.bg, cfg.bb, cfg.borderPx, cfg.middlePx,
     esc(staSsid).c_str(), up, up ? WiFi.localIP().toString().c_str() : "", up ? 0 : staWhy,
     esc(mqttHost).c_str(), mqttPort, esc(mqttUser).c_str(), (int)mqtt.connected());
   return b;
@@ -376,6 +432,11 @@ void setupWeb() {
     cfg.ord = constrain(I("ord", cfg.ord), 0, NORD - 1); cfg.trimB = constrain(I("trim", cfg.trimB), 1, 100);
     cfg.fadeMs = constrain(I("fade", cfg.fadeMs), 0, 5000); cfg.limMA = constrain(I("lim", cfg.limMA), 0, 200000);
     cfg.pixMA = constrain(I("pma", cfg.pixMA), 1, 500);
+    if (server.hasArg("stA")) cfg.stepsA = server.arg("stA");
+    if (server.hasArg("stB")) cfg.stepsB = server.arg("stB");
+    if (server.hasArg("bc")) { uint8_t r, g, b; if (parseHex(server.arg("bc"), r, g, b)) { cfg.br = r; cfg.bg = g; cfg.bb = b; } }
+    cfg.borderPx = constrain(I("bw", cfg.borderPx), 0, 500); cfg.middlePx = constrain(I("mw", cfg.middlePx), 0, 2000);
+    parseAllSteps();
     saveCfg();
     portENTER_CRITICAL(&mux); lookVer++; portEXIT_CRITICAL(&mux);   // redraw with the new order / level
     if (server.hasArg("name") && cleanName(server.arg("name")) != devName) {
