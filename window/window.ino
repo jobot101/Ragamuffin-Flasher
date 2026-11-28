@@ -32,12 +32,10 @@
 #define FW_VERSION  "dev"
 #endif
 #define LATEST_URL  "https://jobot101.github.io/Ragamuffin-Flasher/window/"
-#define AP_SSID     "Window"
+#define DEF_NAME    "window"        // board name (page setting): hall-<name>.local, own WiFi "<Name>", ragamuffin/hall/<name>/*
 #define AP_PASS     nullptr       // open network: the owner wants no password on "Window"
-#define HOSTNAME    "hall-window"
 #define HALL_SSID   "STARLINK"      // the hall network: page default + preset. Password typed once (page or USB serial), NVS only
 #define HOME_SSID   "ClarkShop"     // shop preset; never put a password in this public repo
-#define TOPIC_BASE  "ragamuffin/hall/window"
 #define PIN_A       4               // output 1 (Super Mini GPIO 4)
 #define PIN_B       5               // output 2 (Super Mini GPIO 5), 0 pixels = off
 #define MAX_PIX     4000            // per output (~120 ms per frame at 4000; solid colour only redraws on change)
@@ -89,6 +87,20 @@ DNSServer dns;
 WiFiClient wifiClient;
 PubSubClient mqtt(wifiClient);
 
+String devName = DEF_NAME, HOSTNAME_S, AP_S, TOPIC_S;   // set from the name at boot
+#define HOSTNAME   HOSTNAME_S.c_str()
+#define AP_SSID    AP_S.c_str()
+#define TOPIC_BASE TOPIC_S.c_str()
+String cleanName(String n) {          // lower-case letters, digits and dashes only
+  n.trim(); n.toLowerCase(); String o;
+  for (char c : n) if (isalnum(c) || c == '-') o += c;
+  return o.length() ? o.substring(0, 20) : String(DEF_NAME);
+}
+void applyName() {
+  HOSTNAME_S = "hall-" + devName;
+  AP_S = devName; AP_S[0] = toupper(AP_S[0]);
+  TOPIC_S = "ragamuffin/hall/" + devName;
+}
 String staSsid, staPass, mqttHost, mqttUser, mqttPass;
 uint16_t mqttPort = 1883;
 uint8_t staWhy = 0;
@@ -142,6 +154,7 @@ void loadAll() {
   cfg.nA = prefs.getInt("nA", cfg.nA); cfg.nB = prefs.getInt("nB", cfg.nB); cfg.ord = prefs.getInt("ord", cfg.ord);
   cfg.limMA = prefs.getInt("lim", cfg.limMA); cfg.pixMA = prefs.getInt("pma", cfg.pixMA);
   cfg.trimB = prefs.getInt("trim", cfg.trimB); cfg.fadeMs = prefs.getInt("fade", cfg.fadeMs);
+  devName = cleanName(prefs.getString("name", DEF_NAME)); applyName();
   cfg.rings = prefs.getString("rings", ""); cfg.sync = prefs.getBool("sync", true);
   look.r = prefs.getUChar("r", look.r); look.g = prefs.getUChar("g", look.g); look.b = prefs.getUChar("b", look.b);
   look.bri = prefs.getInt("bri", look.bri); look.test = prefs.getBool("test", look.test);
@@ -382,10 +395,10 @@ String stateJson() {
   bool up = WiFi.status() == WL_CONNECTED;
   char b[1100];
   snprintf(b, sizeof b,
-    "{\"fw\":\"%s\",\"c\":\"%02x%02x%02x\",\"b\":%d,\"test\":%d,\"fx\":\"%s\",\"m\":%d,\"s\":%d,\"nA\":%d,\"nB\":%d,\"ord\":%d,\"trim\":%d,\"fade\":%d,"
+    "{\"fw\":\"%s\",\"name\":\"%s\",\"host\":\"%s\",\"c\":\"%02x%02x%02x\",\"b\":%d,\"test\":%d,\"fx\":\"%s\",\"m\":%d,\"s\":%d,\"nA\":%d,\"nB\":%d,\"ord\":%d,\"trim\":%d,\"fade\":%d,"
     "\"lim\":%d,\"pma\":%d,\"ma\":%d,\"cap\":%d,\"rings\":\"%s\",\"sync\":%d,\"nr\":%d,"
     "\"net\":{\"ssid\":\"%s\",\"up\":%d,\"ip\":\"%s\",\"why\":%d},\"mqtt\":{\"host\":\"%s\",\"port\":%u,\"user\":\"%s\",\"up\":%d}}",
-    FW_VERSION, L.r, L.g, L.b, L.bri, L.test, FXN[fx], L.mode, L.spd, cfg.nA, cfg.nB, cfg.ord, cfg.trimB, cfg.fadeMs,
+    FW_VERSION, devName.c_str(), HOSTNAME, L.r, L.g, L.b, L.bri, L.test, FXN[fx], L.mode, L.spd, cfg.nA, cfg.nB, cfg.ord, cfg.trimB, cfg.fadeMs,
     cfg.limMA, cfg.pixMA, (int)estMA, (int)capped, esc(cfg.rings).c_str(), (int)cfg.sync, nRings,
     esc(staSsid).c_str(), up, up ? WiFi.localIP().toString().c_str() : "", up ? 0 : staWhy,
     esc(mqttHost).c_str(), mqttPort, esc(mqttUser).c_str(), (int)mqtt.connected());
@@ -425,6 +438,11 @@ void setupWeb() {
     if (server.hasArg("show")) previewUntil = millis() + 20000;
     saveCfg();
     portENTER_CRITICAL(&mux); lookVer++; portEXIT_CRITICAL(&mux);   // redraw with the new order / level
+    if (server.hasArg("name") && cleanName(server.arg("name")) != devName) {
+      devName = cleanName(server.arg("name"));
+      { FlashHold fh; Preferences prefs; prefs.begin("stairs", false); prefs.putString("name", devName); prefs.end(); }
+      server.send(200, "application/json", String("{\"restart\":1,\"name\":\"") + devName + "\"}"); delay(400); ESP.restart();
+    }
     if (cfg.nA != oA || cfg.nB != oB) {
       server.send(200, "application/json", "{\"restart\":1}"); delay(400); ESP.restart();
     }
