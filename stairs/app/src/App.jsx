@@ -130,7 +130,7 @@ function Strip({ st, show }) {
 }
 
 // Steps: tap a step and the board lights only it (green = its first pixel, red = its last, neighbours dim blue).
-// Nudge the edges and watch the stairs; nothing is kept until Save.
+// Slide its start, size and borders and watch the stairs; nothing is kept until Save.
 const OUTS = { A: { label: 'Upper flight (GPIO 4)', n: 'nA', key: 'stA' }, B: { label: 'Landing + lower flight (GPIO 5)', n: 'nB', key: 'stB' } }
 // map string: "start-end/startBorder/endBorder" per step (end included), top first; a plain "start" runs to the
 // next step; no borders = the global border width (-1 here)
@@ -157,21 +157,25 @@ function Steps({ st, show }) {
     timer.current = setTimeout(() => getJ('/step?' + qs({ stA: toStr(m.A), stB: toStr(m.B), out: o, i })).then(show).catch(() => {}), 120)
   }
   const pick = i => { setSel(i); preview(map, out, i) }
-  // start can go from the previous step's end + 1 to this step's end; end from this start to the next step's start - 1
-  const move = (i, edge, d) => {
-    const l = list.map(x => ({ ...x })), x = l[i]
-    const bw = v => (v < 0 ? st.bw : v)
-    if (edge === 'bs') x.bs = Math.max(0, Math.min(x.e - x.s + 1, bw(x.bs) + d))
-    else if (edge === 'be') x.be = Math.max(0, Math.min(x.e - x.s + 1, bw(x.be) + d))
-    else if (edge === 's') x.s = Math.min(x.e, Math.max(i ? l[i - 1].e + 1 : 0, x.s + d))
-    else x.e = Math.max(x.s, Math.min(i + 1 < l.length ? l[i + 1].s - 1 : n - 1, x.e + d))
-    const m = { ...map, [out]: l }; setMap(m); setMsg('not saved'); preview(m, out, sel)
+  // set one value of step i, kept inside its neighbours: start / size / border at the green end / border at the red end
+  const bw = v => (v < 0 ? st.bw : v)
+  const lo = i => (i ? list[i - 1].e + 1 : 0), hi = i => (i + 1 < list.length ? list[i + 1].s - 1 : n - 1)
+  const setVal = (i, key, v) => {
+    const l = list.map(x => ({ ...x })), x = l[i], clamp = (a, b) => Math.max(a, Math.min(b, v))
+    if (key === 's') x.s = clamp(lo(i), x.e)
+    else if (key === 'size') x.e = x.s + clamp(1, hi(i) - x.s + 1) - 1
+    else x[key] = clamp(0, x.e - x.s + 1)
+    const m = { ...map, [out]: l }; setMap(m); setMsg('not saved'); preview(m, out, i)
   }
   const save = () => getJ('/cfg?' + qs({ stA: toStr(map.A), stB: toStr(map.B) }))
     .then(j => { setMsg(j.err || 'Saved ✓'); show(j) }).catch(() => setMsg('no reply'))
   const done = () => { setSel(null); getJ('/step?done=1').then(show) }
-  const Nudge = ({ i, edge }) => <div className="row" style={{ marginTop: 4 }}>
-    {[-10, -1, 1, 10].map(d => <button key={d} onClick={() => move(i, edge, d)}>{d > 0 ? '+' + d : d}</button>)}</div>
+  const ctl = (i, k, label, v, min, max) => <div key={k} style={{ marginTop: 8 }}>   // a function, not a component: a drag isn't interrupted
+    <div className="bri" style={{ margin: 0 }}><span>{label}</span><b style={{ fontSize: 20 }}>{v}</b></div>
+    <input type="range" min={min} max={max} value={v} onChange={e => setVal(i, k, +e.target.value)} />
+    <div className="row" style={{ marginTop: 2 }}>{[-10, -1, 1, 10].map(d =>
+      <button key={d} style={{ padding: '6px 2px' }} onClick={() => setVal(i, k, v + d)}>{d > 0 ? '+' + d : d}</button>)}</div>
+  </div>
   const gap = i => i + 1 < list.length ? list[i + 1].s - list[i].e - 1 : 0
 
   return <div className="card"><h2>Steps <small>tap one, nudge its edges, Save</small></h2>
@@ -181,10 +185,10 @@ function Steps({ st, show }) {
       <div className="row"><button className={i === sel ? 'on' : ''} onClick={() => pick(i)} style={{ textAlign: 'left' }}>
         {name(i)} · {x.s}–{x.e} <small>({x.e - x.s + 1} px)</small></button></div>
       {i === sel && <>
-        <p className="hint">Start (green): <b>{x.s}</b></p><Nudge i={i} edge="s" />
-        <p className="hint">End (red): <b>{x.e}</b></p><Nudge i={i} edge="e" />
-        <p className="hint">Border at the green end: <b>{x.bs < 0 ? st.bw + ' (default)' : x.bs}</b> px</p><Nudge i={i} edge="bs" />
-        <p className="hint">Border at the red end: <b>{x.be < 0 ? st.bw + ' (default)' : x.be}</b> px</p><Nudge i={i} edge="be" />
+        {ctl(i, 's', 'Start (green)', x.s, lo(i), x.e)}
+        {ctl(i, 'size', `Size (red at ${x.e})`, x.e - x.s + 1, 1, hi(i) - x.s + 1)}
+        {ctl(i, 'bs', 'Border at the green end', bw(x.bs), 0, Math.min(80, x.e - x.s + 1))}
+        {ctl(i, 'be', 'Border at the red end', bw(x.be), 0, Math.min(80, x.e - x.s + 1))}
       </>}
       {gap(i) > 0 && <p className="hint" style={{ margin: '2px 0 0 10px' }}>↳ {gap(i)} px dark (loop / corner)</p>}
     </div>)}
