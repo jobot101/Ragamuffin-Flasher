@@ -7,8 +7,10 @@ const HALL = 'STARLINK', HOME = 'ClarkShop'                              // = HA
 const ORD = ['GRB', 'RGB', 'BRG', 'RBG', 'GBR', 'BGR']
 const COLOURS = [['Warm', 'ff9329'], ['Candle', 'ff6a10'], ['White', 'ffd9b0'], ['Day', 'ffffff'], ['Red', 'c62b29'], ['Yellow', 'fdcd09'],
   ['Green', '8dad3e'], ['Blue', '60b6e5'], ['Show', '0a2a8a'], ['Purple', '7a2cff'], ['Pink', 'ff3c8a'], ['Teal', '00c0a0']]
-const MODES = [['Solid', '■'], ['Pulse + colour', '◐'], ['Breathe', '○'], ['Spin', '◎'], ['Ripple', '≋'], ['Glass', '✦'], ['Candle', '♨'],
-  ['Christmas', '🎄'], ['Candy cane', '🍬'], ['Snowfall', '❄'], ['Twinkle', '✧'], ['Runner', '▥'], ['Walk up', '⤴']]
+// the firmware's mode numbers (the rest stay in the firmware, not offered here)
+const MODES = { 0: 'Solid', 7: 'Christmas', 11: 'Runner', 12: 'Walk up' }
+// the buttons: Party is the firmware's Test sequence (rainbow, glitter, confetti, juggle, party colours, 8 s each)
+const PICKS = [['Runner', '▥', 11], ['Walk up', '⤴', 12], ['Party', '🎉', 'party'], ['Christmas', '🎄', 7], ['Solid', '■', 0]]
 const WHY = { 2: 'auth expired', 15: 'wrong password', 201: 'not found (2.4 GHz only)', 202: 'wrong password', 203: 'refused', 204: 'wrong password', 205: 'refused' }
 const STRIP = ['nA', 'nB', 'ord', 'trim', 'fade', 'lim', 'limB', 'pma', 'name', 'bc', 'bw', 'mw']
 
@@ -67,15 +69,14 @@ export default function App() {
         <button key={v} onClick={() => setB(v)}>{v ? v + ' %' : 'Off'}</button>)}</div>
 
       <h2 style={{ marginTop: 14 }}>Mode</h2>
-      <div className="chips">{MODES.map(([n, g], i) =>
-        <button key={i} className={st && !st.test && st.m === i ? 'on' : ''} onClick={() => send({ m: i })}>
+      <div className="chips">{PICKS.map(([n, g, m]) =>
+        <button key={n} className={st && (m === 'party' ? st.test : !st.test && st.m === m) ? 'on' : ''}
+          onClick={() => send(m === 'party' ? { test: 1 } : { m })}>
           <i style={{ border: 0, fontSize: 22, lineHeight: '26px' }}>{g}</i>{n}</button>)}</div>
       <div className="bri"><span>Speed</span><b>{speed(look.s)}</b></div>
       <input type="range" min="1" max="100" value={look.s} onChange={e => setS(+e.target.value)} />
-      <div className="row"><button className={'test' + (st?.test ? ' on' : '')} onClick={() => send({ test: st?.test ? 0 : 1 })}>
-        {st?.test ? 'Test running — tap a colour to stop' : 'Test: every colour'}</button></div>
       <div id="st">{err || (st ? <>
-        {st.test ? 'test · ' + st.fx : (MODES[st.m] || ['?'])[0].toLowerCase() + ' · #' + st.c} · {st.b} % · {st.nA}{st.nB ? ' + ' + st.nB : ''} px · {ORD[st.ord]} · about {st.limB ? `${st.maA} + ${st.maB}` : st.ma} mA
+        {st.test ? 'party · ' + st.fx : (MODES[st.m] || 'mode ' + st.m).toLowerCase() + ' · #' + st.c} · {st.b} % · {st.nA}{st.nB ? ' + ' + st.nB : ''} px · {ORD[st.ord]} · about {st.limB ? `${st.maA} + ${st.maB}` : st.ma} mA
         {st.cap ? <span className="warn"> · 100 % = the most the supplies allow</span> : null}</> : '…')}</div>
     </div>
 
@@ -124,7 +125,7 @@ function Strip({ st, show }) {
     <p className="hint">Runner and Walk up use the Light colour for the middle stripe. The step map was set when the stairs were measured (stairs/HANDOFF.md).</p>
     <p className="hint">Board name → hall-NAME.local and its own WiFi; changing it restarts the board.
       Pixels = chips, not LEDs: WS2811 neon often has 3 LEDs per chip. Changing a pixel count restarts the board.
-      Colour order: pick Test, then tap Red — if the strip shows green or blue, try the next order.
+      Colour order: pick Party, then tap Red — if the strip shows green or blue, try the next order.
       mA per pixel = reel W/m ÷ volts ÷ pixels per metre × 1000 (WS2812B 5 V ≈ 60).</p>
     <p className="hint">{msg}</p>
   </div>
