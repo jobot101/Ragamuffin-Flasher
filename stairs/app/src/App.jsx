@@ -170,7 +170,8 @@ function Steps({ st, show }) {
   const save = () => getJ('/cfg?' + qs({ stA: toStr(map.A), stB: toStr(map.B) }))
     .then(j => { setMsg(j.err || 'Saved ✓'); show(j) }).catch(() => setMsg('no reply'))
   const done = () => { setSel(null); getJ('/step?done=1').then(show) }
-  const ctl = (i, k, label, v, min, max) => <div key={k} style={{ marginTop: 8 }}>   // a function, not a component: a drag isn't interrupted
+  // a plain function, not a component, so React keeps the same slider while it's dragged
+  const ctl = (i, k, label, v, min, max) => <div key={k} style={{ marginTop: 8 }}>
     <div className="bri" style={{ margin: 0 }}><span>{label}</span><b style={{ fontSize: 20 }}>{v}</b></div>
     <input type="range" min={min} max={max} value={v} onChange={e => setVal(i, k, +e.target.value)} />
     <div className="row" style={{ marginTop: 2 }}>{[-10, -1, 1, 10].map(d =>
