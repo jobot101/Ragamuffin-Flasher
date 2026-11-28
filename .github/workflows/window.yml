@@ -49,7 +49,11 @@ jobs:
         run: |
           set -o pipefail
           echo "#define FW_VERSION \"${GITHUB_SHA::7}\"" > window/version.h
+          # FL_RMT5_USE_DMA=0: FastLED's RMT DMA path on the S3 can fail at boot depending on memory layout
+          # ("esp_cache_msync: invalid addr", strips dark) — it did on the stairs build. Non-DMA RMT works for any length.
+          # A build flag, not a #define: FastLED's driver is compiled apart from the sketch.
           arduino-cli compile --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=disabled,FlashSize=4M,PartitionScheme=default,FlashMode=dio" \
+            --build-property "compiler.cpp.extra_flags=-DFL_RMT5_USE_DMA=0" --build-property "compiler.c.extra_flags=-DFL_RMT5_USE_DMA=0" \
             --export-binaries --output-dir out window 2>&1 | tee window.log
 
       - name: report compile errors
